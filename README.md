@@ -98,8 +98,6 @@ A typical data flow for a transaction looks like this:
 10. The `minotari_node` uses its `ChainStorage` (`base_layer/core/src/chain_storage`) and `Validation` (`base_layer/core/src/validation`) components to validate and add the block to its local blockchain database.
 11. The new block is then propagated to peers.
 
-[Tari Architecture Diagram](https://raw.githubusercontent.com/tari-project/tari/development/docs/src/diagrams/comms/index.png)
-
 ### 3. Core Business Logic and Main Workflows
 
 The Tari protocol's primary goal is to facilitate the creation and transfer of digital assets in a private and scalable manner.
