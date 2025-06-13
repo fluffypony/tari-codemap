@@ -7,34 +7,34 @@ This repository contains detailed codebase analyses and architectural overviews 
 ## Available Codemaps
 
 ### 🌐 [Tari Core Protocol](tari.md)
-*Main Tari blockchain implementation*
+*Decentralized privacy-preserving blockchain protocol*
 - **Repository**: [tari-project/tari](https://github.com/tari-project/tari)
-- **Focus**: Core blockchain protocol, P2P communications, wallet infrastructure
-- **Architecture**: Modular Rust workspace with layered design
+- **Focus**: Mimblewimble protocol, merge-mining with Monero, digital asset management
+- **Architecture**: Rust monorepo with layered infrastructure and gRPC service communication
 
 ### ⚡ [Glytex GPU Miner](glytex.md)
-*High-performance GPU mining application*
+*High-performance SHA3/Keccak GPU mining application*
 - **Repository**: [tari-project/glytex](https://github.com/tari-project/glytex)  
-- **Focus**: Multi-platform GPU mining (CUDA, OpenCL, Metal)
-- **Architecture**: Performance-optimized mining kernels with HTTP monitoring
+- **Focus**: Multi-backend GPU mining (CUDA, OpenCL, Metal) with trait-based abstraction
+- **Architecture**: Layered multi-backend system with HTTP monitoring and P2Pool integration
 
 ### 🏊 [SHA-P2Pool](sha-p2pool.md)
-*Decentralized pool mining software*
+*Decentralized mining pool with share chain consensus*
 - **Repository**: [tari-project/sha-p2pool](https://github.com/tari-project/sha-p2pool)
-- **Focus**: Decentralized mining pool with share chain consensus
-- **Architecture**: Service-oriented design with domain-driven principles
+- **Focus**: P2Pool mining with libp2p networking and instant decentralized payouts
+- **Architecture**: Service-oriented architecture with domain-driven design and LWMA difficulty adjustment
 
 ### 📱 [Tari Android Wallet](wallet-android.md)
-*Native Android wallet application*
+*Android wallet with biometric authentication and Tor privacy*
 - **Repository**: [tari-project/wallet-android](https://github.com/tari-project/wallet-android)
-- **Focus**: Mobile wallet with Tor integration and FFI bindings
-- **Architecture**: Android MVP with Dagger DI and Rust FFI integration
+- **Focus**: MVVM architecture with JNI/FFI Rust integration and UTXO management
+- **Architecture**: Layered Android app with Dagger 2 DI, Jetpack Compose, and C++/Rust FFI bridge
 
 ### 🍎 [Tari iOS Wallet](wallet-ios.md)
-*Native iOS wallet application*
+*iOS Aurora wallet with Tor integration and iCloud backup*
 - **Repository**: [tari-project/wallet-ios](https://github.com/tari-project/wallet-ios)
-- **Focus**: iOS wallet with SwiftUI and native Tari library integration
-- **Architecture**: SwiftUI with MVVM and Swift FFI bindings
+- **Focus**: Privacy-first iOS wallet with Combine reactive programming and biometric security
+- **Architecture**: MVVM with UIKit, Combine framework, and Swift FFI bindings to Rust core
 
 ## Usage
 
