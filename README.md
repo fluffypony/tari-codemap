@@ -32,9 +32,16 @@ This repository contains detailed codebase analyses and architectural overviews 
 
 ### 🍎 [Tari iOS Wallet](wallet-ios.md)
 *iOS Aurora wallet with Tor integration and iCloud backup*
+
 - **Repository**: [tari-project/wallet-ios](https://github.com/tari-project/wallet-ios)
 - **Focus**: Privacy-first iOS wallet with Combine reactive programming and biometric security
 - **Architecture**: MVVM with UIKit, Combine framework, and Swift FFI bindings to Rust core
+
+### 🌌 [Tari Universe](universe.md)
+*Desktop mining application with integrated wallet and gamification*
+- **Repository**: [tari-project/universe](https://github.com/tari-project/universe)
+- **Focus**: Cross-platform desktop mining app with React frontend, Rust backend, and airdrop game
+- **Architecture**: Tauri-based app with React/TypeScript UI, Rust backend, and external mining binary management
 
 ## Usage
 
