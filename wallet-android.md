@@ -6,240 +6,388 @@
 
 ## Project Overview
 
-## Tari Universe Wallet Android - Comprehensive Codebase Overview
+## Tari Wallet Android Application - Technical Overview
 
 ### Directory Structure
+
 ```
-wallet-android/
-├── app/                        # Main application module
-│   ├── src/main/
-│   │   ├── java/com/tari/android/wallet/
-│   │   │   ├── application/    # App-level components (Application class, lifecycle)
-│   │   │   ├── data/          # Data layer (repositories, models, network)
-│   │   │   ├── di/            # Dependency injection (Dagger modules)
-│   │   │   ├── ffi/           # Foreign Function Interface (Rust wallet integration)
-│   │   │   ├── infrastructure/ # Core infrastructure (logging, sharing, etc.)
-│   │   │   ├── model/         # Domain models (transactions, addresses, etc.)
-│   │   │   ├── navigation/    # Navigation framework
-│   │   │   ├── notification/  # Push notifications and FCM
-│   │   │   ├── tor/           # Tor network integration for privacy
-│   │   │   ├── ui/            # User interface layer
-│   │   │   └── util/          # Utilities and extensions
-│   │   ├── AndroidManifest.xml
-│   │   ├── assets/            # Static assets
-│   │   ├── cpp/               # Native C++ code
-│   │   ├── res/               # Android resources
-│   │   └── jniLibs/           # Native libraries
-│   └── build.gradle.kts       # Module build configuration
-├── buildSrc/                  # Build logic and dependencies
-├── libwallet/                 # Pre-built native wallet libraries
-├── yatlib/                    # YAT (Your Alias Token) integration
-├── build.gradle.kts           # Root build file
-├── settings.gradle.kts        # Project settings
-└── README.md                  # Project documentation
+tari-android/
+├── app/                               # Main Android application module
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/tari/android/wallet/
+│   │   │   │   ├── application/       # App lifecycle and core setup
+│   │   │   │   ├── data/              # Repositories and data layer
+│   │   │   │   ├── di/                # Dependency injection (Dagger 2)
+│   │   │   │   ├── ffi/               # Native Rust FFI integration
+│   │   │   │   ├── infrastructure/    # Services and utilities
+│   │   │   │   ├── model/             # Data models and entities
+│   │   │   │   ├── navigation/        # Navigation framework
+│   │   │   │   ├── notification/      # Push notifications
+│   │   │   │   ├── tor/               # Tor proxy integration
+│   │   │   │   ├── ui/                # UI components and screens
+│   │   │   │   └── util/              # Extensions and utilities
+│   │   │   ├── cpp/                   # JNI C++ bridge to Rust
+│   │   │   ├── assets/                # Tor configs and resources
+│   │   │   └── res/                   # Android resources
+│   │   ├── androidTest/               # Instrumented tests
+│   │   └── test/                      # Unit tests
+│   └── build.gradle.kts               # Module build config
+├── buildSrc/                          # Gradle build customization
+│   └── src/main/kotlin/
+│       ├── Dependencies.kt            # Centralized versions
+│       ├── TariBuildConfig.kt         # Build configuration
+│       └── download-libwallet.gradle.kts  # Native lib management
+├── libwallet/                         # Native Rust libraries
+│   ├── arm64-v8a/                     # ARM64 architecture
+│   └── x86_64/                        # x86_64 architecture
+├── yatlib/                            # YAT integration module
+└── docs/                              # Documentation
+
 ```
 
 ### Architecture Overview
 
-**Multi-Layer Architecture**
-The application follows a clean architecture pattern with clear separation of concerns:
+The Tari Wallet Android application follows a layered architecture pattern combining MVVM (Model-View-ViewModel) with clean architecture principles. The system integrates native Rust wallet functionality through FFI (Foreign Function Interface) with a modern Android UI built using both traditional Views and Jetpack Compose.
 
-1. **Presentation Layer** (UI)
-   - Activities, Fragments, and Compose screens
-   - ViewModels implementing MVVM pattern
-   - Custom views and adapters
+#### Core Architecture Layers
 
-2. **Domain Layer** (Business Logic)
-   - Use cases and business logic
-   - Domain models and entities
-   - Repository interfaces
+1. **Presentation Layer (UI)**
+   - Mixed UI approach: Traditional XML Views + Jetpack Compose
+   - MVVM pattern with ViewModels and LiveData/StateFlow
+   - Modular dialog system for flexible UI composition
+   - Custom Tari design system with themed components
+
+2. **Domain Layer**
+   - Business logic encapsulated in ViewModels
+   - Use cases implemented within repository pattern
+   - State management through reactive streams
 
 3. **Data Layer**
-   - Repository implementations
-   - Data sources (local/remote)
-   - Network services and APIs
+   - Repository pattern for data access abstraction
+   - SharedPreferences for local configuration
+   - FFI bridge to native Rust wallet implementation
+   - Network integration for blockchain and API communication
 
 4. **Infrastructure Layer**
-   - FFI integration with Rust wallet
-   - System services and utilities
-   - Cross-cutting concerns
+   - Dependency injection via Dagger 2
+   - Tor proxy for privacy-enhanced networking
+   - Logging and crash reporting (Sentry)
+   - Backup and restoration system
 
-### Core Components
+#### Key Architectural Components
 
-#### 1. Wallet Core (FFI Integration)
-- **FFIWallet**: Main interface to Rust-based wallet library
-- **Native Libraries**: ARM64/x86_64 compiled Tari wallet core
-- **Transaction Management**: Send, receive, and track Tari transactions
-- **Key Management**: Wallet keys, addresses, and cryptographic operations
+##### FFI Integration
+The app's core wallet functionality is implemented in Rust and accessed through JNI:
+- C++ bridge layer (`app/src/main/cpp/`) handles native method calls
+- Kotlin FFI wrapper classes provide type-safe access to native functions
+- Automatic memory management through FFIBase class hierarchy
 
-#### 2. User Interface Architecture
-**MVVM with Jetpack Compose & XML**
-- **Base Classes**: CommonActivity, CommonFragment, CommonViewModel
-- **Compose Integration**: Modern UI with design system
-- **XML Legacy**: Traditional Android views where needed
-- **Navigation**: Custom navigation framework with deep linking
+##### State Management
+- **WalletManager**: Central coordinator for wallet lifecycle
+- **StateHandlers**: Reactive state management for balance, connections, base nodes
+- **EffectFlow**: Custom flow utilities for one-time UI events
 
-**Key UI Modules:**
-- **Home**: Main wallet interface with balance and transactions
-- **Send/Receive**: Transaction creation and processing
-- **Contact Book**: Contact management with phone integration
-- **Settings**: App configuration and preferences
-- **Onboarding**: User setup and wallet creation
-- **Authentication**: Security (PIN, biometrics, passwords)
+##### Navigation
+- Custom navigation system built on top of Android Navigation Component
+- Type-safe navigation through sealed class hierarchy
+- Deep link support for external app integration
 
-#### 3. Security & Privacy
-- **Tor Integration**: Network privacy via Tor
-- **Biometric Authentication**: Fingerprint/face unlock
-- **Secure Storage**: Encrypted preferences and key storage
-- **Privacy Builds**: Special privacy-focused build variants
-- **Screen Recording Protection**: Prevents sensitive data capture
+### Core Business Logic
 
-#### 4. Contact Management System
-- **Contact Linking**: Links Tari contacts with phone contacts
-- **Search & Filtering**: Advanced contact search capabilities
-- **Share Functionality**: QR codes, links, NFC, BLE sharing
-- **Favorites**: Preferred contact management
+#### Wallet Management Workflow
+1. **Wallet Creation**
+   - Generate seed phrase through FFI
+   - Create wallet files and configuration
+   - Initialize base node connections
+   - Setup Tor proxy if privacy mode enabled
 
-#### 5. Transaction System
-- **Transaction Types**: Inbound, outbound, completed, cancelled
-- **UTXO Management**: Unspent transaction output handling
-- **Fee Management**: Dynamic fee calculation
-- **Transaction History**: Comprehensive transaction tracking
+2. **Transaction Flow**
+   - Contact selection or address input
+   - Amount entry with fee estimation
+   - Transaction construction via FFI
+   - Broadcasting to base nodes
+   - Status tracking through callbacks
+
+3. **Balance and UTXO Management**
+   - Real-time balance updates from FFI callbacks
+   - UTXO coin control with join/split operations
+   - Transaction history with contact integration
+
+4. **Backup and Recovery**
+   - Seed phrase display and verification
+   - Cloud backup via Google Drive
+   - Password-protected local backups
+   - Restoration from seed phrase or backup file
+
+#### Security Features
+1. **Authentication**
+   - Biometric authentication (fingerprint/face)
+   - PIN code fallback
+   - Screen recording protection
+   - Address poisoning detection
+
+2. **Privacy**
+   - Tor integration for network anonymization
+   - Optional bridge configuration
+   - Privacy mode with reduced telemetry
+
+### Key Technical Patterns
+
+#### Dependency Injection
+```kotlin
+@Singleton
+@Component(modules = [ApplicationModule::class, RetrofitModule::class, ...])
+interface ApplicationComponent {
+    fun inject(activity: HomeActivity)
+    fun inject(viewModel: HomeViewModel)
+    // ... 50+ injection targets
+}
+```
+
+#### Repository Pattern
+```kotlin
+@Singleton
+class ContactsRepository @Inject constructor(
+    private val db: ContactsDb,
+    private val scope: CoroutineScope
+) {
+    private val _contactList = MutableStateFlow<List<Contact>>(emptyList())
+    val contactList: StateFlow<List<Contact>> = _contactList
+    
+    fun updateContact(contact: Contact) {
+        // Update logic
+    }
+}
+```
+
+#### FFI Wrapper Pattern
+```kotlin
+class FFIWallet(pointer: FFIPointer) : FFIBase(pointer) {
+    external fun getBalance(): FFIBalance
+    external fun sendTari(destination: FFITariWalletAddress, amount: Long): FFITxId
+    // Native methods wrapped for Kotlin usage
+}
+```
+
+#### Modular Dialog System
+```kotlin
+val dialog = ModularDialog(context, ModularDialogArgs(
+    modules = listOf(
+        HeadModule("Title"),
+        BodyModule("Description"),
+        ButtonModule("OK") { dismiss() }
+    )
+))
+```
+
+### Important Dependencies
+
+#### Core Android
+- **AndroidX**: Core Android components and Jetpack libraries
+- **Compose**: Modern declarative UI toolkit (migration in progress)
+- **Coroutines**: Asynchronous programming with Kotlin
+- **Dagger 2**: Compile-time dependency injection
+
+#### Networking
+- **Retrofit**: REST API client for backend communication
+- **OkHttp**: HTTP client with interceptor support
+- **Tor Proxy**: Privacy-enhanced networking
+
+#### Security & Storage
+- **Biometric**: AndroidX biometric authentication
+- **SQLite**: Local database (via native library)
+- **SharedPreferences**: Configuration storage
+
+#### Third-Party Integrations
+- **Sentry**: Crash reporting and performance monitoring
+- **Firebase**: Cloud messaging for push notifications
+- **YAT**: Emoji alias token integration
+- **Lottie**: Animation support
+
+#### Native Libraries
+- **libminotari_wallet_ffi**: Core Rust wallet implementation
+- **OpenSSL**: Cryptographic operations
+- **SQLite**: Database functionality
+
+### Database Schema
+
+The wallet uses SQLite through the native Rust library for core wallet data:
+
+#### Wallet Database (Native)
+- **Transactions**: All transaction records
+- **Contacts**: Wallet contact information
+- **UTXOs**: Unspent transaction outputs
+- **Wallet State**: Synchronization and configuration
+
+#### Android Local Storage
+- **SharedPreferences**: App configuration, settings
+- **Paper Database**: Simple key-value storage for caching
+- **Files**: Log files, backup files
+
+### API Structure
+
+#### Internal APIs (FFI)
+The app communicates with the native wallet through JNI:
+```cpp
+// Example: jniWallet.cpp
+JNIEXPORT jobject JNICALL
+Java_com_tari_android_wallet_ffi_FFIWallet_getBalance(JNIEnv *env, jobject thiz) {
+    // Native balance retrieval
+}
+```
+
+#### External APIs
+1. **Airdrop API** (`/api/v1/`)
+   - User registration
+   - Mining statistics
+   - Reward distribution
+
+2. **Push Notification API**
+   - Token registration
+   - Notification delivery
+
+3. **YAT API**
+   - Emoji ID resolution
+   - Address lookup
+
+### Testing Approach
+
+#### Unit Tests
+- Model validation tests
+- Utility function tests
+- Repository logic tests
+
+#### Instrumented Tests
+- FFI integration tests
+- Database operations
+- UI component tests
+
+#### Test Infrastructure
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class FFIWalletTests {
+    @Test
+    fun testWalletCreation() {
+        // Test wallet lifecycle
+    }
+}
+```
+
+#### Mock Data Support
+- DebugConfig provides mock transactions, contacts, UTXOs
+- Enables UI development without blockchain connection
+
+### Build and Deployment
+
+#### Build Variants
+1. **Debug**: Development build with debugging enabled
+2. **Release**: Production build with ProGuard optimization
+
+#### Product Flavors
+1. **Regular**: Standard build with all features
+2. **Privacy**: Enhanced privacy without analytics
+
+#### Build Process
+1. Download native libraries via Gradle task
+2. Compile Kotlin/Java code
+3. Link native libraries
+4. Package APK/AAB
+
+#### Configuration Files
+- `secret.properties`: API keys and secrets
+- `sentry.properties`: Crash reporting configuration
+- `yat.properties`: YAT service credentials
+
+#### ProGuard Rules
+Critical rules preserve:
+- FFI layer classes
+- Model classes and enums
+- Callback interfaces
+- YAT integration code
+
+#### Deployment
+1. **Google Play Store**: Regular flavor
+2. **F-Droid**: Privacy flavor without proprietary dependencies
+3. **Direct APK**: Available from GitHub releases
+
+#### Version Management
+- Version code generated from git commit count
+- Semantic versioning for version names
+- Network-specific builds with different configurations
 
 ### Key Workflows
 
-#### 1. Wallet Creation Flow
-1. **Introduction** → **Create Wallet** → **Security Setup** → **Backup Creation**
-2. Generates seed phrase and secure storage
-3. Establishes authentication methods
-4. Creates wallet backup options
+#### 1. New User Onboarding
+```
+StartActivity -> OnboardingFlowActivity -> IntroductionFragment
+    ↓
+CreateWalletFragment (generates seed phrase)
+    ↓
+LocalAuthFragment (setup PIN/biometrics)
+    ↓
+HomeActivity (main wallet interface)
+```
 
-#### 2. Transaction Flow
-1. **Amount Entry** → **Recipient Selection** → **Confirmation** → **Finalization**
-2. Validates recipient and amount
-3. Calculates fees and creates transaction
-4. Broadcasts to Tari network
+#### 2. Send Transaction Flow
+```
+HomeFragment -> TransferFragment -> ContactSelectionFragment
+    ↓
+AddAmountFragment (with fee calculation)
+    ↓
+AddNoteFragment (optional message)
+    ↓
+ConfirmFragment (review transaction)
+    ↓
+FinalizeSendTxFragment (broadcast)
+```
 
-#### 3. Contact Integration Flow
-1. **Permission Request** → **Contact Sync** → **Link Creation** → **Verification**
-2. Accesses device contacts with permission
-3. Links phone contacts to Tari addresses
-4. Enables easy transaction targeting
+#### 3. Wallet Restoration
+```
+WalletRestoreActivity -> ChooseRestoreOptionFragment
+    ↓
+InputSeedWordsFragment (24-word validation)
+    ↓
+WalletRestoringFragment (sync progress)
+    ↓
+HomeActivity (restored wallet)
+```
 
-#### 4. Authentication Flow
-1. **Biometric Check** → **PIN Verification** → **Session Management**
-2. Multi-factor authentication support
-3. Session timeout and security policies
-4. Emergency access procedures
-
-### Technical Stack
-
-#### Core Technologies
-- **Language**: Kotlin (primary), Java (legacy)
-- **UI Framework**: Jetpack Compose + XML Views
-- **Architecture**: MVVM with LiveData/StateFlow
-- **Dependency Injection**: Dagger 2
-- **Database**: SQLite with Room (implied)
-- **Networking**: Retrofit + OkHttp
-- **Reactive Programming**: RxJava + Coroutines
-
-#### Key Dependencies
-- **AndroidX**: Lifecycle, Navigation, Compose
-- **Material Design 3**: UI components and theming
-- **Firebase**: Cloud messaging and analytics
-- **Sentry**: Crash reporting and monitoring
-- **Tor**: Network privacy (Guardian Project)
-- **YAT**: Alias token integration
-- **Lottie**: Animation support
-
-### Build System
-
-#### Multi-Flavor Configuration
-- **Regular Build**: Standard functionality
-- **Privacy Build**: Enhanced privacy features
-- **Debug/Release**: Development vs production builds
-
-#### Native Library Integration
-- **Automatic Download**: Fetches Tari wallet libraries
-- **ABI Support**: ARM64-v8a, x86_64 architectures
-- **CMake Integration**: Native code compilation
-- **Symbol Upload**: Crash reporting with native symbols
-
-### Testing Strategy
-
-#### Test Types
-- **Unit Tests**: JUnit with Mockk
-- **Integration Tests**: Android Test with Espresso
-- **UI Tests**: Compose testing framework
-- **Manual Testing**: Debug screens and tools
-
-#### Debug Features
-- **Design System Showcase**: Component library testing
-- **Debug Activity**: Development tools and utilities
-- **Logging**: Comprehensive logging with Timber
-- **Memory Analysis**: LeakCanary integration
+#### 4. Backup Creation
+```
+BackupSettingsFragment -> WriteDownSeedPhraseFragment
+    ↓
+VerifySeedPhraseFragment (word verification)
+    ↓
+BackupManager (cloud/local storage)
+```
 
 ### Security Considerations
 
-#### Data Protection
-- **Encryption**: Sensitive data encryption at rest
-- **Secure Communication**: TLS + Tor for network traffic
-- **Key Management**: Hardware-backed security where available
-- **Backup Security**: Password-protected wallet backups
+1. **Private Key Management**: Keys never leave native layer
+2. **Screen Protection**: Prevents screenshots of sensitive data
+3. **Address Validation**: Emoji ID system reduces typos
+4. **Network Privacy**: Tor support for anonymized connections
+5. **Backup Encryption**: Password-protected backup files
+6. **Biometric Auth**: Hardware-backed authentication
 
-#### Privacy Features
-- **Tor Integration**: Anonymous network communication
-- **Privacy Builds**: Specialized privacy-focused variants
-- **Contact Isolation**: Separation of wallet and phone contacts
-- **Screen Protection**: Prevents unauthorized screenshots
+### Performance Optimizations
 
-### Development Setup
+1. **Lazy Loading**: Fragments and views loaded on demand
+2. **Coroutine Usage**: Non-blocking async operations
+3. **State Caching**: Reactive state prevents unnecessary updates
+4. **Native Performance**: Core logic in optimized Rust
+5. **Resource Management**: Automatic cleanup via lifecycle
 
-#### Requirements
-- **Android Studio**: 4.0+ with NDK support
-- **Target SDK**: Modern Android (API 33+)
-- **NDK**: For native library compilation
-- **Emulator**: x86_64 images for testing
+### Future Considerations
 
-#### Configuration Files
-- **secret.properties**: API keys and sensitive config
-- **sentry.properties**: Crash reporting setup
-- **yat.properties**: YAT service configuration
-- **Firebase**: google-services.json for cloud services
+1. **Compose Migration**: Ongoing transition from XML to Compose
+2. **Modularity**: Further modularization of features
+3. **Testing**: Expanded test coverage and automation
+4. **Performance**: Continued optimization of sync and UI
+5. **Features**: Additional DeFi and privacy features
 
-### Notable Patterns & Practices
-
-#### Design Patterns
-- **Repository Pattern**: Data access abstraction
-- **Observer Pattern**: Reactive UI updates
-- **Command Pattern**: Transaction operations
-- **Factory Pattern**: Component creation
-- **Dependency Injection**: Loose coupling via Dagger
-
-#### Code Quality
-- **Consistent Architecture**: MVVM throughout
-- **Separation of Concerns**: Clear layer boundaries
-- **Error Handling**: Comprehensive error management
-- **Resource Management**: Proper lifecycle handling
-- **Memory Efficiency**: Optimized for mobile devices
-
-### Integration Points
-
-#### External Services
-- **Tari Network**: Blockchain interaction
-- **Firebase**: Push notifications and analytics
-- **Google Drive**: Backup storage
-- **Phone Contacts**: Native contact integration
-- **YAT Service**: Alias token resolution
-
-#### System Integration
-- **NFC**: Near-field communication for sharing
-- **Camera**: QR code scanning
-- **Biometrics**: Device security integration
-- **Notifications**: System notification management
-- **File System**: Log files and backup management
-
-This Tari Universe Wallet represents a production-ready cryptocurrency wallet with enterprise-level architecture, comprehensive security measures, and modern Android development practices. The codebase demonstrates sophisticated understanding of mobile financial application requirements, privacy considerations, and user experience design.
+This technical overview provides a comprehensive understanding of the Tari Wallet Android application architecture, enabling new developers to quickly understand the codebase structure and contribute effectively to the project.
 
 ## Codebase Structure
 
@@ -907,7 +1055,7 @@ This Tari Universe Wallet represents a production-ready cryptocurrency wallet wi
 
 | File | Description |
 |------|-------------|
-| `SharedPrefBigIntegerDelegate.kt` | Property delegate for observing value changes with before/after callbacks. Generic delegate class supporting text and tile change listeners. Exports: ChangedPropertyDelegate class with configurable change listeners. Used by: Components requiring property change observation. Features separate before/after change callbacks for text and tile changes, allowing reactive UI updates when property values change. Useful for form validation and UI synchronization. |
+| `SharedPrefBigIntegerDelegate.kt` | Property delegate for value change observation with before/after callbacks. Generic delegate class supporting text and tile change listeners. Exports: ChangedPropertyDelegate class with configurable change listeners. Used by: Components requiring property change observation. Features separate before/after change callbacks for text and tile changes, allowing reactive UI updates when property values change. Useful for form validation and UI synchronization. |
 
 ###### app/src/main/java/com/tari/android/wallet/ui/dialog/confirm/
 
@@ -2072,27 +2220,27 @@ This Tari Universe Wallet represents a production-ready cryptocurrency wallet wi
 | `vector_share_dots.xml` | Vector drawable share icon with dots styling for enhanced sharing options. Share symbol with dots decoration used for advanced sharing features, multiple sharing options, or share menu triggers. Used by: Advanced share buttons, share option menus, enhanced sharing UI, multi-option sharing interfaces. Provides visual indication for comprehensive sharing options and advanced sharing functionality. |
 | `vector_share_link.xml` | Vector drawable share link icon for sharing URLs and links. Link share symbol used for sharing wallet addresses, transaction links, or web links related to wallet functionality. Used by: Link sharing buttons, URL sharing UI, address link sharing, web link export features. Provides clear visual indication for sharing links and URL-based wallet information. |
 | `vector_share_qr_code.xml` | Vector drawable for QR code sharing functionality. 22x22dp white QR code pattern icon used in sharing interfaces and dialogs. Features detailed QR code visualization with corner markers and data pattern. Used in bridge sharing, address sharing, and general QR code generation contexts throughout the wallet application for easy sharing and scanning operations. |
-| `vector_sharing_failed.xml` | Vector drawable for sharing failure state. Displays a red 'X' cross icon (60x60dp) with #D32C44 color used in sharing dialogs and status indicators to show failed sharing operations. Uses even-odd fill rule for proper rendering. |
-| `vector_sharing_success.xml` | Vector drawable for sharing success state. Displays a purple checkmark icon (60x60dp) with #9330FF color used in sharing dialogs and status indicators to show successful sharing operations. Contains detailed path data for smooth checkmark visualization. |
-| `vector_shield_checkmark.xml` | Vector drawable for security verification. Displays a shield with checkmark icon (20x20dp) with #D8D9DF color used to indicate security status, wallet protection, or verification states. Complex path data creates shield outline with embedded checkmark. |
-| `vector_similar_contact_bg_stroke.xml` | Shape drawable for similar contact background. Creates a rectangular background with 10dp rounded corners and 1dp stroke using ?attr/palette_icons_active color. Used for highlighting similar contacts in search results or suggestions. |
-| `vector_star.xml` | Vector drawable for favorite/star icon. Displays a star shape (22x23dp) with #9330FF purple fill color used for marking favorite contacts or important items. Complex path data creates classic 5-pointed star shape. |
-| `vector_store_reload.xml` | Vector drawable for reload/refresh icon. Displays circular arrows (23x22dp) with black fill color used in store or refresh functionality. Complex path data creates circular reload arrows indicating refresh or reload actions. |
-| `vector_store_share.xml` | Vector drawable for sharing/upload icon. Displays share symbol (17x21dp) with black fill color showing document with upward arrow. Used for sharing functionality in store or content sharing features. |
-| `vector_tari_yat_close.xml` | Vector drawable for closed/disabled YAT (Your Alias Token) state. Complex icon (21x20dp) with #C3C7D7 gray color showing disabled YAT functionality with diagonal line through YAT symbols. Used to indicate YAT features are unavailable or disabled. |
-| `vector_tari_yat_open.xml` | Vector drawable for active/enabled YAT (Your Alias Token) state. Complex icon (17x21dp) with #9330FF purple color showing enabled YAT functionality. Used to indicate active YAT features and alias token integration in wallet. |
-| `vector_tx_detail_arrow_down.xml` | Vector drawable for transaction detail expansion arrow. Circular icon (46x46dp) with white background, black border, and white downward arrow. Used in transaction details to indicate expandable sections or received transaction direction. |
-| `vector_utxos_list_join.xml` | Vector drawable for UTXO join/merge operation. Displays merge arrow icon (15x19dp) with black fill color showing downward arrow with converging paths. Used in UTXO management interface to indicate joining or merging unspent transaction outputs. |
-| `vector_utxos_list_selected.xml` | Vector drawable for selected UTXO checkmark. Small checkmark icon (9x6dp) using ?attr/palette_system_green color to indicate selected UTXOs in list interfaces. Used for multi-selection of unspent transaction outputs. |
+| `vector_sharing_failed.xml` | Vector drawable icon indicating failed sharing operations. Error or failure symbol used to show unsuccessful sharing attempts, failed exports, or sharing errors. Used by: Sharing error states, failed export notifications, sharing failure feedback UI. Provides clear visual indication when sharing operations fail and need user attention or retry. |
+| `vector_sharing_success.xml` | Vector drawable icon indicating successful sharing operations. Success checkmark or confirmation symbol used to show successful sharing, completed exports, or sharing confirmations. Used by: Sharing success states, successful export confirmations, sharing completion feedback UI. Provides positive visual feedback when sharing operations complete successfully. |
+| `vector_shield_checkmark.xml` | Vector drawable shield with checkmark for security and protection indicators. Security shield icon with verification checkmark used to show secure states, verified security, or protection confirmations. Used by: Security indicators, protection status UI, verified security states, safety confirmations. Provides visual representation of security verification and protection status throughout security-related interfaces. |
+| `vector_similar_contact_bg_stroke.xml` | Vector drawable stroke background for similar contact indicators. Border or outline styling used to highlight similar contacts, contact matches, or contact suggestions in search and contact management. Used by: Similar contact displays, contact matching UI, contact suggestion indicators, duplicate contact highlighting. Provides visual emphasis for contact similarity and matching functionality. |
+| `vector_star.xml` | Vector drawable star icon for favorites, ratings, or special indicators. Star symbol used for marking favorites, rating features, special content, or premium indicators throughout the app. Used by: Favorite buttons, rating systems, special feature indicators, premium content markers. Provides clear visual indication for favorite items and special content designation. |
+| `vector_store_reload.xml` | Vector drawable reload/refresh icon for store or marketplace functionality. Refresh or reload symbol used in store interfaces to reload content, refresh listings, or update marketplace data. Used by: Store refresh buttons, marketplace reload UI, content refresh actions, data update controls. Provides clear visual indication for refreshing store content and marketplace information. |
+| `vector_store_share.xml` | Vector drawable share icon for store or marketplace content sharing. Share symbol specifically used in store interfaces for sharing products, marketplace items, or store-related content. Used by: Store sharing buttons, marketplace content sharing, product sharing UI, store social features. Provides clear visual indication for sharing store and marketplace content with others. |
+| `vector_tari_yat_close.xml` | Vector drawable close icon for YAT (Your Alias Token) interfaces. Close or dismiss symbol specifically styled for YAT-related dialogs, YAT configuration screens, or YAT feature interfaces. Used by: YAT dialog close buttons, YAT screen dismissal, YAT configuration cancellation. Provides contextually appropriate close affordance for YAT-related UI components and flows. |
+| `vector_tari_yat_open.xml` | Vector drawable open/expand icon for YAT (Your Alias Token) interfaces. Open, expand, or launch symbol specifically styled for YAT-related features, YAT configuration access, or YAT service opening. Used by: YAT feature access buttons, YAT configuration opening, YAT service launch controls. Provides contextually appropriate access affordance for YAT-related functionality and services. |
+| `vector_tx_detail_arrow_down.xml` | Vector drawable downward arrow for transaction detail expansion. Down arrow icon used in transaction details to expand additional information, show more details, or access extended transaction data. Used by: Transaction detail expansion, transaction info reveals, extended data access buttons. Provides clear visual indication for expanding transaction details and accessing additional transaction information. |
+| `vector_utxos_list_join.xml` | Vector drawable join icon for UTXO list operations. Join or combine symbol used in UTXO management to merge multiple UTXOs into larger outputs for transaction optimization. Used by: UTXO join operations, UTXO consolidation UI, transaction optimization controls, UTXO management tools. Provides clear visual indication for combining multiple UTXOs into fewer, larger outputs for improved transaction efficiency. |
+| `vector_utxos_list_selected.xml` | Vector drawable selection indicator for UTXO list items. Selection checkmark or indicator used to show selected UTXOs in UTXO management interfaces for batch operations. Used by: UTXO selection UI, multi-UTXO operations, batch UTXO management, UTXO list selection controls. Provides visual feedback for UTXO selection state in multi-select UTXO management workflows. |
 | `vector_utxos_list_split.xml` | Vector drawable for UTXO split operation visualization. 19x18dp icon showing arrows diverging from center point representing UTXO splitting functionality. Features dual arrow design with path elements indicating separation or breaking of single UTXO into multiple outputs. Used in UTXO management interface for split operation buttons and visual indicators in advanced coin control features. |
-| `vector_utxos_list_tile_bg.xml` | Shape drawable for UTXO list tile background. Rectangular background with 10dp rounded corners using ?attr/palette_text_heading color. Used as background for UTXO list items in the wallet interface. |
-| `vector_utxos_list_tile_outline_bg.xml` | Shape drawable for UTXO list tile outline background. Rectangular background with 11dp rounded corners and 2dp white stroke, no fill. Used as outline/border background for UTXO list items to create selection or focus states. |
-| `vector_utxos_minus.xml` | Vector drawable for UTXO removal/minus operation. Circular icon (19x19dp) with themed background and white minus symbol. Uses ?attr/palette_text_heading for circle color. Used to remove or deselect UTXOs in management interface. |
-| `vector_utxos_plus.xml` | Vector drawable for UTXO addition/plus operation. Circular icon (19x19dp) with themed background and white plus symbol. Uses ?attr/palette_text_heading for circle color. Used to add or select UTXOs in management interface. |
-| `vector_utxos_status_confirmed.xml` | Vector drawable for confirmed UTXO status. Quarter-circle icon (27x27dp) with orange background (?attr/palette_system_orange) and white trophy/award symbol. Used to indicate confirmed status in UTXO management with visual hierarchy and scaling applied to inner symbol. |
-| `vector_utxos_status_mined.xml` | Vector drawable for mined UTXO status. Status indicator icon (likely circular/badge style) using system theme colors to indicate UTXO has been mined and confirmed on the blockchain. Used in UTXO management interface for status visualization. |
-| `vector_utxos_status_text_confirmed.xml` | Vector drawable for confirmed UTXO status text indicator. Text-style status indicator showing confirmed state for UTXO transactions. Used alongside status icons to provide clear textual confirmation status in UTXO lists and details. |
-| `vector_utxos_status_text_mined.xml` | Vector drawable for mined UTXO status text indicator. Text-style status indicator showing mined state for UTXO transactions. Used alongside status icons to provide clear textual mined status in UTXO lists and details. |
+| `vector_utxos_list_tile_bg.xml` | Vector drawable background for UTXO list tile components. Background styling for individual UTXO items in list views, providing consistent visual presentation for UTXO data. Used by: UTXO list items, UTXO tile backgrounds, UTXO management UI, UTXO display components. Provides consistent background styling for UTXO list items and tile-based UTXO presentations throughout the management interface. |
+| `vector_utxos_list_tile_outline_bg.xml` | Vector drawable outlined background for UTXO list tile components. Outlined border styling for UTXO items in list views, used for selection states, hover states, or emphasis. Used by: UTXO list item selection, UTXO tile highlighting, selected UTXO indicators, UTXO emphasis states. Provides outlined background styling for UTXO list items requiring visual emphasis or selection indication. |
+| `vector_utxos_minus.xml` | Vector drawable minus icon for UTXO operations and controls. Minus or subtract symbol used in UTXO management for removing items, decreasing values, or negative operations. Used by: UTXO removal controls, UTXO quantity decreasing, UTXO subtraction operations, UTXO management negative actions. Provides clear visual indication for removing or decreasing UTXO-related values and operations. |
+| `vector_utxos_plus.xml` | Vector drawable plus icon for UTXO operations and controls. Plus or add symbol used in UTXO management for adding items, increasing values, or positive operations. Used by: UTXO addition controls, UTXO quantity increasing, UTXO addition operations, UTXO management positive actions. Provides clear visual indication for adding or increasing UTXO-related values and operations. |
+| `vector_utxos_status_confirmed.xml` | Vector drawable confirmed status indicator for UTXO states. Confirmation checkmark or verified symbol used to show UTXOs that have been confirmed on the blockchain. Used by: UTXO status indicators, confirmed UTXO displays, UTXO state visualization, blockchain confirmation UI. Provides visual representation of UTXO confirmation status and blockchain verification state. |
+| `vector_utxos_status_mined.xml` | Vector drawable mined status indicator for UTXO states. Mining or mined symbol used to show UTXOs that have been mined and included in blockchain blocks. Used by: UTXO status indicators, mined UTXO displays, UTXO mining state visualization, blockchain mining UI. Provides visual representation of UTXO mining status and blockchain inclusion state. |
+| `vector_utxos_status_text_confirmed.xml` | Vector drawable text-based confirmed status for UTXO displays. Text or label styling for confirmed UTXO status indicators, providing textual confirmation status representation. Used by: UTXO status text displays, confirmed UTXO labels, UTXO text status indicators, status text styling. Provides text-based visual representation of UTXO confirmation status with appropriate styling for confirmed states. |
+| `vector_utxos_status_text_mined.xml` | Vector drawable text-based mined status for UTXO displays. Text or label styling for mined UTXO status indicators, providing textual mining status representation. Used by: UTXO status text displays, mined UTXO labels, UTXO text status indicators, mining status text styling. Provides text-based visual representation of UTXO mining status with appropriate styling for mined states. |
 | `vector_validation_error_box_border_bg.xml` | Selector drawable for validation error box border. Rectangular background with transparent fill, 1dp red stroke (?attr/palette_system_red), and 4dp rounded corners. Used to highlight input fields or containers with validation errors. |
 | `vector_view_elevation_bottom_gradient.xml` | Gradient drawable for bottom elevation effects. Linear gradient for creating shadow or elevation effects specifically at bottom edge of views. Provides visual depth and separation for UI components with smooth gradient transition from bottom. |
 | `vector_view_elevation_gradient.xml` | Gradient drawable for view elevation effects. Linear gradient at 270° angle from gray to transparent, used to create shadow or elevation effects. Provides visual depth for UI components with smooth gradient transition. |

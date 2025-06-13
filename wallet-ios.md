@@ -6,407 +6,481 @@
 
 ## Project Overview
 
-## Tari Wallet iOS App - Comprehensive Codebase Overview
+## Tari Aurora iOS Wallet - Technical Documentation
+
+### Table of Contents
+1. [Directory Structure](#directory-structure)
+2. [Architecture Overview](#architecture-overview)
+3. [Core Business Logic](#core-business-logic)
+4. [Key Technical Patterns](#key-technical-patterns)
+5. [Dependencies and Integrations](#dependencies-and-integrations)
+6. [Database Schema](#database-schema)
+7. [API Structure](#api-structure)
+8. [Testing Approach](#testing-approach)
+9. [Build and Deployment](#build-and-deployment)
 
 ### Directory Structure
+
 ```
 wallet-ios/
-├── MobileWallet/                    # Main application code
-│   ├── Assets.xcassets/            # UI assets (colors, icons, images)
-│   │   ├── Colors/                 # Theme-aware color definitions
-│   │   ├── Icons/                  # App icons organized by category
-│   │   │   ├── Settings/           # Settings screen icons
-│   │   │   ├── UTXO/              # UTXO management icons
-│   │   │   └── Yat/               # Yat integration icons
-│   │   └── Images/                 # UI images and illustrations
-│   │       ├── Contact Book/       # Contact-related imagery
-│   │       ├── Security/           # Security onboarding images
-│   │       ├── TabBar/             # Tab bar illustrations
-│   │       ├── Themes/             # Theme preview images
-│   │       └── UTXO/              # UTXO management visuals
-│   ├── Libraries/TariLib/          # Core Tari blockchain integration
-│   │   ├── Core/                   # FFI bindings and wallet operations
-│   │   │   └── FFI/               # Rust FFI wrappers
-│   │   │       ├── Balance.swift   # Wallet balance operations
-│   │   │       └── Base Node/      # Network connectivity status
-│   │   └── Wrappers/               # Swift wrappers for Rust FFI
-│   ├── Screens/                    # UI screens and view controllers
-│   │   ├── Home/                   # Main wallet interface
-│   │   ├── Send/                   # Transaction sending flow
-│   │   ├── Contact Book/           # Contact management
-│   │   ├── Settings/               # App configuration
-│   │   └── Profile/                # User profile management
-│   ├── Common/                     # Shared utilities and components
-│   │   ├── Deep Links/             # URL-based action system
-│   │   ├── Extensions/             # Swift standard library extensions
-│   │   ├── Managers/               # Business logic coordinators
-│   │   │   └── VideoCaptureManager.swift # QR code scanning
-│   │   ├── Views/                  # Reusable UI components
-│   │   │   ├── Address View/       # Address display components
-│   │   │   ├── FormTextField.swift # Form input components
-│   │   │   ├── SearchField.swift   # Search functionality
-│   │   │   ├── TickButton.swift    # Selection controls
-│   │   │   └── Secure View/        # Privacy protection views
-│   │   ├── Pop-up/                 # Modal popup system
-│   │   │   ├── Components/         # Popup UI components
-│   │   │   ├── Handlers/           # Event handlers
-│   │   │   ├── PopUpPresenter.swift # Central popup manager
-│   │   │   ├── TariPopUp.swift     # Custom popup container
-│   │   │   └── PopUpComponentsFactory.swift # Component factory
-│   │   ├── Onboarding/             # Security onboarding flow
-│   │   │   ├── OnboardingViewController.swift # Main controller
-│   │   │   ├── OnboardingPageView.swift # Individual page view
-│   │   │   └── OnboardingPageViewController.swift # Page controller
-│   │   ├── Theme/                  # Dynamic theming system
-│   │   │   ├── AppTheme.swift      # Theme definitions
-│   │   │   ├── ThemeCoordinator.swift # Theme management
-│   │   │   └── DynamicThemeView.swift # Theme-aware views
-│   │   ├── Persistant Data/        # Data persistence layer
-│   │   │   ├── User Settings/      # User preference storage
-│   │   │   │   ├── UserSettings.swift # Settings data model
-│   │   │   │   └── UserSettingsManager.swift # Settings manager
-│   │   │   └── UserDefaults.swift  # App-wide storage configuration
-│   │   ├── Property Wrappers/      # Swift property wrappers
-│   │   │   └── UserDefault.swift   # Type-safe UserDefaults
-│   │   ├── Protocols/              # Swift protocols
-│   │   ├── Tools/                  # Utility classes
-│   │   └── Toasts/                 # Toast notification system
-│   ├── UIElements/                 # Custom UI components
-│   ├── Backup/                     # Wallet backup/restore system
-│   ├── Fonts/                      # Custom font assets
-│   │   └── fontExporter.sh         # Font processing script
-│   └── AppDelegate.swift           # App lifecycle management
-├── UnitTests/                      # Test suite
-├── fastlane/                       # Build automation
-├── .github/                        # CI/CD workflows
-└── README.md                       # Project documentation
+├── .github/                      # GitHub configuration
+│   ├── ISSUE_TEMPLATE/          # Bug report templates
+│   └── PULL_REQUEST_TEMPLATE.md # PR template with checklist
+│
+├── MobileWallet/                 # Main application code
+│   ├── AppDelegate.swift        # App lifecycle management
+│   ├── SceneDelegate.swift      # Scene lifecycle (iOS 13+)
+│   ├── Info.plist              # App configuration
+│   │
+│   ├── Assets.xcassets/         # Image and color assets
+│   │   ├── AppIcon.appiconset/ # App icons
+│   │   ├── Assets/             # UI images and icons
+│   │   ├── Colors/             # Theme colors (light/dark)
+│   │   └── Icons/              # Various icon sets
+│   │
+│   ├── Libraries/TariLib/       # Core wallet library integration
+│   │   ├── Core/               # FFI wrappers and services
+│   │   │   ├── FFI/            # Rust FFI bindings
+│   │   │   ├── Services/       # High-level wallet services
+│   │   │   ├── Tor/            # Tor network integration
+│   │   │   └── Tari.swift      # Main wallet manager
+│   │   └── Wrappers/           # Utility wrappers
+│   │
+│   ├── Common/                  # Shared utilities and components
+│   │   ├── Extensions/         # Swift extensions
+│   │   ├── Managers/           # App-wide managers
+│   │   ├── Deep Links/         # Deep link handling
+│   │   ├── Theme/              # Theming system
+│   │   └── Pop-up/             # Popup presentation system
+│   │
+│   ├── Screens/                 # UI screens (MVVM pattern)
+│   │   ├── AppEntry/           # Splash and wallet creation
+│   │   ├── Home/               # Main wallet dashboard
+│   │   ├── Send/               # Transaction sending flow
+│   │   ├── Contact Book/       # Contact management
+│   │   ├── Settings/           # App settings
+│   │   └── Profile/            # User profile
+│   │
+│   ├── UIElements/             # Reusable UI components
+│   │   ├── Buttons/            # Custom button components
+│   │   ├── Labels/             # Specialized labels
+│   │   └── Navigation/         # Navigation components
+│   │
+│   └── Backup/                 # Backup services
+│       ├── Manager/            # Backup coordination
+│       ├── ICloud/             # iCloud backup
+│       └── Dropbox/            # Dropbox backup
+│
+├── UnitTests/                   # Test suite
+│   └── *.swift                 # Various test files
+│
+├── fastlane/                    # Deployment automation
+│   ├── Fastfile                # Deployment lanes
+│   └── Pluginfile              # Fastlane plugins
+│
+└── Configuration Files
+    ├── Podfile                 # CocoaPods dependencies
+    ├── .swiftlint.yml         # Code style rules
+    ├── env-example.json       # Environment template
+    └── update_dependencies.sh  # Setup script
 ```
 
 ### Architecture Overview
 
-#### Core Design Patterns
-- **MVVM Architecture:** Model-View-ViewModel pattern with Constructor dependency injection
-- **FFI Integration:** Swift-to-Rust FFI for core Tari protocol operations
-- **Deep Link System:** Comprehensive URL-based actions for wallet operations
-- **Theme System:** Dynamic theming with light/dark/purple variants and real-time switching
-- **Popup System:** Centralized modal presentation using SwiftEntryKit
-- **Security-First Design:** Multiple layers of protection and staged security onboarding
+#### High-Level Architecture
 
-#### Key Components Integration
-1. **TariLib Core:** Rust FFI bindings provide secure wallet operations through type-safe wrappers
-2. **Deep Link Handler:** Processes tari:// URLs for external app integration with full validation
-3. **Transaction Manager:** Handles sending, receiving, and transaction history with real-time updates
-4. **Contact System:** Manages address book with BLE and QR sharing capabilities
-5. **Security Layer:** Biometric authentication, secure storage, and staged security introduction
-6. **Theme Coordinator:** Centralized theme management with system integration and Yat SDK support
+The Tari Aurora wallet follows a modular, layered architecture:
+
+```
+┌─────────────────────────────────────────────────┐
+│                 UI Layer                         │
+│  (UIViewControllers, Views, UIElements)        │
+├─────────────────────────────────────────────────┤
+│              Business Logic                      │
+│  (Models, ViewModels, Managers)                │
+├─────────────────────────────────────────────────┤
+│              Service Layer                       │
+│  (TariLib Services, Network, Storage)          │
+├─────────────────────────────────────────────────┤
+│                Core Layer                        │
+│  (FFI Bindings, Tor, Cryptography)            │
+├─────────────────────────────────────────────────┤
+│              External Services                   │
+│  (iCloud, Dropbox, Firebase, Giphy)           │
+└─────────────────────────────────────────────────┘
+```
+
+#### Component Relationships
+
+1. **Tari Core Integration**
+   - `Tari.swift` acts as the central wallet manager singleton
+   - FFI wrappers in `Libraries/TariLib/Core/FFI/` bridge Swift to Rust
+   - Services layer provides high-level APIs for wallet operations
+
+2. **UI Architecture (MVVM)**
+   - Each screen has: Constructor → ViewController → View → Model
+   - Constructors handle dependency injection
+   - ViewModels use Combine for reactive data flow
+   - Views are purely presentational
+
+3. **Data Flow**
+   ```
+   User Action → ViewController → Model → Service → FFI → Rust Core
+                                    ↓
+   UI Update ← ViewController ← Model (via @Published)
+   ```
+
+#### Key Architectural Decisions
+
+1. **Privacy First**: All network traffic routes through Tor
+2. **Security**: Screenshot protection, secure storage, biometric auth
+3. **Reactive Programming**: Combine framework for data flow
+4. **Theme System**: Dynamic light/dark theme support
+5. **Modular Design**: Clear separation of concerns
 
 ### Core Business Logic
 
-#### Transaction Management
-- **Send Flow:** Multi-step process (recipient → amount → note → confirmation) with validation
-- **Fee Estimation:** Dynamic fee calculation with network traffic indicators and user selection
-- **Transaction Types:** Standard transfers, UTXO splitting/joining operations with visual feedback
-- **Progress Tracking:** Real-time transaction status with visual feedback and error handling
-- **UTXO Management:** Visual selection, splitting, joining with tile and list view modes
+#### 1. Wallet Initialization Flow
 
-#### Deep Link System
-Comprehensive URL-based action system supporting:
-- `tari://network/transactions/send` - Send transactions with pre-filled data and validation
-- `tari://network/contacts` - Import contacts from QR codes or links with verification
-- `tari://network/base_nodes/add` - Add custom base nodes with connectivity testing
-- `tari://network/profile` - Share user profile information with privacy controls
-- `tari://network/paper_wallet` - Import paper wallet keys with security warnings
-- `tari://network/airdrop/auth` - Authentication for external services and integrations
+```swift
+// AppDelegate.swift → Tari.swift → WalletContainer.swift
+1. App launches
+2. Configure logging and crash reporting
+3. Initialize Tor connection
+4. Check for existing wallet
+5. If exists: authenticate user (biometrics)
+6. If not: show onboarding/creation flow
+7. Connect to base node
+8. Sync blockchain state
+```
 
-#### Contact Management
-- **Internal Storage:** Core Data-based contact persistence with full CRUD operations
-- **External Sharing:** QR code generation and BLE transmission with proximity detection
-- **Deep Link Integration:** Import contacts via URL schemes with validation and conflict resolution
-- **Transaction History:** Per-contact transaction viewing with filtering and search capabilities
-- **Favorites System:** Priority contact management with quick access
+#### 2. Transaction Sending Flow
 
-#### Wallet Operations
-- **Balance Management:** Real-time balance updates with pending/available splits and refresh capabilities
-- **UTXO Management:** Visual UTXO selection, splitting, and joining with value picker controls
-- **Backup/Restore:** Seed phrase backup with cloud storage options and recovery validation
-- **Network Switching:** Support for mainnet/testnet/localnet with automatic configuration
-- **Security Stages:** Progressive security feature introduction based on wallet value thresholds
+The send transaction flow is multi-step:
 
-#### Popup and Modal System
-- **Centralized Management:** PopUpPresenter handles all modal dialogs with consistent styling
-- **Component Factory:** PopUpComponentsFactory creates standardized UI components
-- **TariPopUp Container:** Custom popup container with secure content wrapper and responsive layout
-- **Button Management:** PopUpButtonsView handles multiple button types (normal, destructive, text, dimmed)
-- **Configuration Options:** Dismissal behavior, haptic feedback, display duration, and tagging support
+```
+AddRecipientViewController → AddAmountViewController → AddNoteViewController 
+→ ConfirmationViewController → SendingTariViewController
+```
 
-#### Onboarding and Security
-- **4-Stage Security Introduction:** Progressive security feature education with interactive elements
-- **OnboardingViewController:** Main flow controller managing page transitions and progress
-- **OnboardingPageView:** Individual page view with dynamic content and responsive layout
-- **Staged Wallet Security:** Threshold-based security feature unlocking with visual progress
-- **Action Integration:** Direct links to security setup screens from onboarding pages
+Key components:
+- **PaymentInfo**: Data model carrying transaction details
+- **WalletTransactionsManager**: Handles actual transaction broadcast
+- **TransactionFormatter**: Formats transaction for display
+
+#### 3. Contact Management System
+
+```
+ContactsManager (facade) → InternalContactsManager (storage)
+                      ↓
+                 TariContactsService (wallet integration)
+```
+
+Features:
+- Internal contacts stored in UserDefaults
+- Transaction history integration
+- Emoji ID support
+- Address poisoning protection
+
+#### 4. Backup and Recovery
+
+Three backup methods:
+1. **Seed Phrase**: 24-word mnemonic (BIP39)
+2. **iCloud**: Encrypted wallet backup
+3. **Dropbox**: Encrypted wallet backup
+
+Recovery flow:
+```
+RestoreWalletViewController → Choose method
+├── Seed words → SeedWordsWalletRecoveryManager
+├── iCloud → ICloudBackupService
+└── Dropbox → DropboxBackupService
+```
+
+#### 5. Mining Integration
+
+- Desktop companion app integration
+- Mining status monitoring
+- Reward tracking via UserManager API
 
 ### Key Technical Patterns
 
-#### FFI Bridge Pattern
-```swift
-// Rust FFI integration through TariLib with error handling
-let wallet = try Wallet(commsConfig: config, logPath: logPath)
-let balance = try wallet.getBalance()
+#### 1. Dependency Injection Pattern
 
-// Balance wrapper with automatic cleanup
-final class Balance {
-    let pointer: OpaquePointer
-    var available: UInt64 { /* FFI call with error handling */ }
-    deinit { balance_destroy(pointer) }
-}
-```
+All screens use constructor-based DI:
 
-#### Deep Link Codable Pattern
 ```swift
-// URL parameters automatically decode to Swift structs with validation
-let deepLink = try DeepLinkFormatter.model(type: TransactionsSendDeeplink.self, deeplink: url)
-```
-
-#### Constructor Dependency Injection
-```swift
-// Consistent DI pattern across all screens with factory methods
-struct HomeConstructor {
-    static func buildScene() -> UIViewController {
-        let model = HomeModel(dependencies...)
-        let view = HomeView()
-        return HomeViewController(model: model, view: view)
+enum ScreenConstructor {
+    static func buildScene(dependency: Model) -> UIViewController {
+        let model = ScreenModel(dependency: dependency)
+        let viewController = ScreenViewController(model: model)
+        return viewController
     }
 }
 ```
 
-#### Reactive UI Updates with Combine
-```swift
-// Theme-aware UI components with automatic updates
-@Published private(set) var balance: WalletBalance
-```
+#### 2. Reactive Programming (Combine)
 
-#### Property Wrapper Pattern
-```swift
-// Type-safe UserDefaults with Codable support
-@UserDefault(key: "userSettings") static var userSettings: UserSettings?
-```
+ViewModels expose @Published properties:
 
-#### Dynamic Theme Pattern
 ```swift
-// Theme-aware components with real-time updates
-final class SearchField: DynamicThemeTextField {
-    override func update(theme: AppTheme) {
-        backgroundColor = theme.backgrounds.primary
-        textColor = theme.text.heading
-    }
+class ViewModel {
+    @Published var state: State = .initial
+    @Published var data: [Item] = []
+    
+    private var cancellables = Set<AnyCancellable>()
 }
 ```
 
-### Important Dependencies
+#### 3. Protocol-Oriented Design
 
-#### External Frameworks
-- **GiphyUISDK:** Transaction GIF attachments with search and selection
-- **Tor:** Network privacy and routing with bridge configuration support
-- **SwiftKeychainWrapper:** Secure credential storage with biometric protection
-- **DropboxSDK:** Cloud backup integration with encrypted storage
-- **SwiftEntryKit:** Modal presentation system with animation and interaction support
-- **YatLib:** Yat integration for human-readable addresses
+Core protocols define contracts:
+- `WalletInteractable`: Wallet operations
+- `BackupServicable`: Backup services
+- `ThemeViewProtocol`: Theming support
 
-#### Internal Modules
-- **TariLib:** Core Rust FFI bindings with comprehensive wallet operations
-- **Theme System:** Dynamic UI theming with system integration and real-time switching
-- **Logger:** Comprehensive logging infrastructure with filtering and export capabilities
-- **Security:** Biometric and encryption utilities with staged feature introduction
-- **VideoCaptureManager:** QR code scanning with format detection and validation
+#### 4. Error Handling
+
+Standardized error types with localization:
+
+```swift
+protocol CoreError {
+    var code: Int { get }
+    var domain: String { get }
+}
+
+// Usage
+ErrorMessageManager.getMessageModel(for: error)
+```
+
+#### 5. Security Patterns
+
+- `SecureViewController`: Screenshot prevention
+- `SecureWrapperView`: Content protection
+- Keychain storage for sensitive data
+- Biometric authentication
+
+### Dependencies and Integrations
+
+#### Core Dependencies (Podfile)
+
+```ruby
+## Networking & Privacy
+pod 'Tor'                    # Onion routing
+
+## UI & Animation
+pod 'lottie-ios'            # Animations
+pod 'SwiftEntryKit'         # Popups
+
+## External Services
+pod 'Firebase/Messaging'     # Push notifications
+pod 'Sentry-Dynamic'        # Crash reporting
+pod 'Giphy'                 # GIF support
+pod 'SwiftyDropbox'         # Dropbox backup
+
+## Crypto & Utilities
+pod 'Base58Swift'           # Address encoding
+pod 'YatLib'                # Emoji addresses
+```
+
+#### External Service Integrations
+
+1. **Firebase Cloud Messaging**
+   - Push notifications for transactions
+   - Device token management
+   - Background notifications
+
+2. **Giphy SDK**
+   - Transaction note GIF attachments
+   - Search and preview functionality
+
+3. **Dropbox/iCloud**
+   - Encrypted wallet backups
+   - Automatic synchronization
+
+4. **Sentry**
+   - Crash reporting
+   - Performance monitoring
+   - Debug logging
+
+5. **Yat Integration**
+   - Emoji-based addresses
+   - Visual transaction confirmations
 
 ### Database Schema
 
-#### Core Data Models
-- **Contact:** Contact information with address, metadata, and transaction history links
-- **Transaction:** Transaction records with dynamic content, status tracking, and filtering
-- **UTXO:** Unspent transaction output management with visual representation
-- **Settings:** User preferences and configuration with validation and migration support
+The wallet uses a Rust-based SQLite database accessed via FFI:
 
-#### FFI Data Models
-- **TariAddress:** Wallet addresses with emoji representation and validation
-- **MicroTari:** Precise currency amount handling with formatting utilities
-- **TransactionKernel:** Cryptographic transaction proofs with verification
-- **SeedWords:** Mnemonic backup phrases with checksum validation
-- **BaseNodeConnectivityStatus:** Network connection state tracking
+#### Key Tables (inferred from usage)
+
+1. **Transactions**
+   - Pending inbound/outbound
+   - Completed transactions
+   - Transaction metadata
+
+2. **Contacts**
+   - Address
+   - Alias
+   - Favorite status
+
+3. **UTXOs**
+   - Unspent outputs
+   - Amount and status
+
+4. **Key-Value Store**
+   - Network settings
+   - Configuration data
+
+#### Data Access Pattern
+
+```
+Swift Layer → FFI Functions → Rust Core → SQLite
+```
+
+All database operations go through FFI wrappers that handle:
+- Pointer management
+- Type conversion
+- Error propagation
 
 ### API Structure
 
-#### Wallet API (FFI)
-- **Balance Operations:** `getBalance()`, `getAvailableBalance()` with real-time updates
-- **Transaction Operations:** `sendTransaction()`, `getTransactions()` with comprehensive error handling
-- **Contact Operations:** `addContact()`, `getContacts()` with validation and conflict resolution
-- **Network Operations:** `addBaseNode()`, `setBaseNode()` with connectivity testing
-- **UTXO Operations:** `getUTXOs()`, `splitUTXO()`, `joinUTXOs()` with visual feedback
+#### Internal APIs (Services)
+
+1. **TariBalanceService**
+   ```swift
+   @Published var balance: WalletBalance
+   func fetchBalance() throws
+   ```
+
+2. **TariTransactionsService**
+   ```swift
+   func sendTransaction(address:amount:fee:message:)
+   func cancelTransaction(id:)
+   ```
+
+3. **TariContactsService**
+   ```swift
+   var allContacts: [Contact]
+   func upsert(contact:)
+   ```
+
+#### External APIs
+
+1. **Mining API** (airdrop.tari.com)
+   ```swift
+   struct UserDetails {
+       let rank: Rank
+       let avatarDetails: AvatarDetails
+   }
+   ```
+
+2. **Push Notification API**
+   ```swift
+   func registerDevice(token:signature:)
+   func sendPushNotification(to:message:)
+   ```
 
 #### Deep Link API
-- **URL Parsing:** Automatic parameter extraction and validation with error handling
-- **Action Routing:** Type-safe action dispatching with security validation
-- **Response Generation:** URL creation for sharing with proper encoding
-- **Format Support:** Multiple URL schemes and parameter formats
 
-#### Notification API
-- **Local Notifications:** Reminder and status notifications with deep link actions
-- **Deep Link Actions:** Notification-triggered app actions with security checks
-- **Background Processing:** Silent notification handling with state management
-
-#### Asset Management API
-- **Image Sets:** Organized by category with template rendering support
-- **Theme Assets:** Light/dark variants with automatic selection
-- **Icon Management:** Semantic naming with consistent sizing and styling
-- **Illustration Assets:** Feature-specific imagery with accessibility support
+Supports various tari:// URLs:
+- `tari://mainnet/transactions/send?address=...&amount=...`
+- `tari://mainnet/contacts?alias=...&address=...`
+- `tari://mainnet/base_nodes/add?name=...&peer=...`
 
 ### Testing Approach
 
 #### Unit Tests
-- **Model Testing:** Core business logic validation with comprehensive coverage
-- **Utility Testing:** Extension and helper function verification with edge cases
-- **Deep Link Testing:** URL parsing and generation validation with malformed input handling
-- **Theme Testing:** Color scheme validation and transition testing
-- **FFI Testing:** Rust library integration verification with error case handling
 
-#### Integration Points
-- **FFI Testing:** Rust library integration verification with performance benchmarks
-- **Network Testing:** Base node connectivity validation with failover scenarios
-- **Storage Testing:** Persistence layer verification with data migration testing
-- **UI Testing:** Component interaction validation with accessibility verification
+Located in `UnitTests/` directory:
+
+- **Core Logic Tests**
+  - `AmountNumberFormatterTests`: Currency formatting
+  - `DeepLinkFormatterTests`: URL parsing
+  - `SeedWordsTests`: Mnemonic validation
+
+- **Network Tests**
+  - `NetworkManagerTests`: Network configuration
+  - `StringBaseNodeTests`: Address validation
+
+- **Utility Tests**
+  - `VersionValidatorTests`: Version comparison
+  - `YatCacheManagerTests`: File caching
+
+#### Testing Patterns
+
+1. **Mocking**: `TariNetwork+Mocks.swift` for network mocking
+2. **Dependency Injection**: Constructor-based for testability
+3. **Async Testing**: Using XCTest expectations
+
+#### Manual Testing Considerations
+
+- Device-specific testing (notch/non-notch)
+- Network condition testing (Tor connectivity)
+- Backup/restore flows
+- Deep link handling
 
 ### Build and Deployment
 
+#### Environment Setup
+
+1. **Dependencies Installation**
+   ```bash
+   ./update_dependencies.sh [mainnet|nextnet]
+   ```
+   - Downloads FFI library
+   - Configures preprocessor macros
+   - Installs CocoaPods
+   - Sets up git hooks
+
+2. **Environment Configuration**
+   - Copy `env-example.json` to `env.json`
+   - Add API keys (Giphy, Sentry, Push Server)
+
 #### Build Configuration
-- **Environment Switching:** Production/testnet/development builds with clear separation
-- **Code Signing:** Automatic certificate management via Fastlane with distribution profiles
-- **Asset Compilation:** Xcode asset catalog optimization with size reduction
-- **Font Processing:** Custom font integration with export utilities
-- **Script Integration:** Build automation with fontExporter.sh for font modifications
 
-#### Deployment Pipeline
-- **Fastlane:** Automated build and distribution with TestFlight integration
-- **TestFlight:** Beta testing distribution with crash reporting and feedback collection
-- **App Store:** Production release management with phased rollout support
-- **CI/CD:** GitHub Actions integration with automated testing and deployment
+- **Debug**: Development builds with logging
+- **Release**: Production builds with optimizations
+- **Schemes**: MobileWallet, MobileWalletNotificationService
 
-#### Development Tools
-- **SwiftLint:** Code style enforcement with custom rules and automatic fixing
-- **Xcode Instruments:** Performance profiling with memory leak detection
-- **Console Logging:** Comprehensive debug information with filtering and export
+#### Fastlane Deployment
 
-### Security Considerations
-
-#### Cryptographic Security
-- **Seed Phrase Protection:** Secure enclave storage with biometric access control
-- **Private Key Management:** Never exposed to Swift layer, maintained in Rust FFI
-- **Transaction Signing:** Performed in Rust FFI layer with hardware security module integration
-- **Address Validation:** Multiple format support with checksum verification
-
-#### Network Security
-- **Tor Integration:** All network traffic routed through Tor with bridge configuration
-- **Base Node Validation:** Certificate pinning and validation with fallback options
-- **Deep Link Validation:** Input sanitization and type checking with malicious URL protection
-- **Privacy Protection:** Screen recording detection and background security measures
-
-#### User Security
-- **Biometric Authentication:** Face ID/Touch ID integration with fallback PIN support
-- **Screen Recording Detection:** Privacy protection measures with content hiding
-- **Background Security:** App content hiding when backgrounded with secure view overlays
-- **Staged Security:** Progressive feature introduction based on wallet value and user readiness
-
-### Performance Optimizations
-
-#### Memory Management
-- **FFI Pointer Handling:** Automatic cleanup of Rust objects with reference counting
-- **Image Caching:** Asset and GIF caching systems with intelligent memory management
-- **View Recycling:** Table/collection view cell reuse with efficient dequeuing
-- **Theme Caching:** Color and asset caching with memory-conscious updates
-
-#### Network Optimization
-- **Connection Pooling:** Efficient base node connections with automatic failover
-- **Background Sync:** Opportunistic transaction updates with intelligent scheduling
-- **Bandwidth Management:** Configurable sync preferences with data usage monitoring
-
-#### Asset Optimization
-- **Vector Assets:** PDF-based icons with template rendering for theme adaptation
-- **Image Compression:** Optimized asset delivery with progressive loading
-- **Asset Bundling:** Efficient packaging with on-demand loading capabilities
-
-### Key Integration Points
-
-#### External App Integration
-- **URL Schemes:** Deep link handling from other apps with security validation
-- **Share Extensions:** Contact and transaction sharing with privacy controls
-- **Universal Links:** Web-to-app navigation with domain validation
-- **Inter-App Communication:** Secure data exchange with sandboxing enforcement
-
-#### System Integration
-- **Keychain:** Secure credential storage with synchronization and backup
-- **CloudKit:** Backup synchronization with end-to-end encryption
-- **Camera:** QR code scanning functionality with permission management
-- **Contacts:** System contact integration (optional) with privacy controls
-- **Biometrics:** Face ID/Touch ID integration with fallback authentication
-
-#### Third-Party Service Integration
-- **Yat SDK:** Human-readable address integration with emoji support
-- **Giphy SDK:** GIF attachment support with content filtering
-- **Tor Network:** Privacy-focused networking with bridge configuration
-- **Cloud Storage:** Backup services with encryption and access control
-
-### Architectural Strengths
-1. **Modular Design:** Clear separation of concerns with well-defined boundaries
-2. **Type Safety:** Comprehensive Swift type system usage with generic programming
-3. **Security First:** Multiple layers of security protection with progressive disclosure
-4. **User Experience:** Intuitive UI with comprehensive error handling and accessibility support
-5. **Extensibility:** Plugin-ready architecture for future features with clean interfaces
-6. **Performance:** Optimized for mobile with intelligent caching and resource management
-7. **Maintainability:** Consistent patterns and comprehensive documentation
-8. **Testability:** Dependency injection and protocol-based design for testing
-
-### Areas for Future Enhancement
-1. **Multi-wallet Support:** Support for multiple wallet instances with account switching
-2. **Advanced UTXO Management:** More sophisticated coin control with privacy optimization
-3. **DeFi Integration:** Smart contract and DApp connectivity with security sandboxing
-4. **Improved Accessibility:** Enhanced screen reader support with comprehensive voice guidance
-5. **Performance Monitoring:** Real-time performance analytics with crash reporting
-6. **Advanced Security:** Hardware security module integration with quantum-resistant algorithms
-7. **Internationalization:** Multi-language support with RTL layout adaptation
-8. **Offline Capabilities:** Enhanced offline functionality with local transaction queuing
-
-### Component Interaction Patterns
-
-#### Popup System Flow
-```
-PopUpPresenter → TariPopUp → PopUpComponentsFactory
-                ↓                    ↓
-        SwiftEntryKit          Component Views
-                ↓                    ↓
-         Screen Display       User Interaction
-                ↓                    ↓
-        Event Handling      Callback Execution
+```ruby
+## Upload debug symbols to Sentry
+lane :dsym do
+  upload_symbols_to_sentry(
+    auth_token: ENV["SENTRY_AUTH_TOKEN"],
+    org_slug: "tari-labs",
+    project_slug: "wallet-ios"
+  )
+end
 ```
 
-#### Theme System Flow
-```
-ThemeCoordinator → AppTheme → DynamicThemeView
-        ↓              ↓              ↓
-  User Settings   Color Schemes   Component Updates
-        ↓              ↓              ↓
-   Persistence    Asset Selection   UI Refresh
-```
+#### Security Considerations
 
-#### Deep Link Processing
-```
-URL Input → DeepLinkHandler → Validation → Route Dispatch
-    ↓              ↓              ↓           ↓
-App Launch    Format Check   Security    Screen Presentation
-    ↓              ↓              ↓           ↓
-State Setup   Parameter Parse  Permission   Action Execution
-```
+1. **Code Signing**
+   - Team ID required in env.json
+   - Automatic signing in Xcode
 
-This comprehensive overview captures the current state of the Tari iOS wallet codebase, highlighting its sophisticated architecture, security-first approach, and modular design that enables both powerful functionality and future extensibility.
+2. **API Key Protection**
+   - Pre-commit hooks sanitize Info.plist
+   - Sensitive keys in env.json (git-ignored)
+
+3. **Network Security**
+   - All traffic through Tor
+   - Certificate pinning for critical APIs
+
+#### Release Process
+
+1. Feature development on feature branches
+2. Merge to `development` for testing
+3. Create `release/*` branch
+4. Test and fix issues
+5. Merge to `master` and tag
+6. Deploy via Fastlane/CI
+
+---
+
+This documentation provides a comprehensive overview of the Tari Aurora iOS wallet architecture. The codebase demonstrates professional Swift development practices with strong emphasis on security, privacy, and user experience. The modular architecture and clear separation of concerns make it maintainable and extensible for future enhancements.
 
 ## Codebase Structure
 
