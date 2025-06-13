@@ -24,6 +24,18 @@ This repository contains detailed codebase analyses and architectural overviews 
 - **Focus**: Decentralized mining pool with share chain consensus
 - **Architecture**: Service-oriented design with domain-driven principles
 
+### 📱 [Tari Android Wallet](wallet-android.md)
+*Native Android wallet application*
+- **Repository**: [tari-project/wallet-android](https://github.com/tari-project/wallet-android)
+- **Focus**: Mobile wallet with Tor integration and FFI bindings
+- **Architecture**: Android MVP with Dagger DI and Rust FFI integration
+
+### 🍎 [Tari iOS Wallet](wallet-ios.md)
+*Native iOS wallet application*
+- **Repository**: [tari-project/wallet-ios](https://github.com/tari-project/wallet-ios)
+- **Focus**: iOS wallet with SwiftUI and native Tari library integration
+- **Architecture**: SwiftUI with MVVM and Swift FFI bindings
+
 ## Usage
 
 Each codemap provides:
