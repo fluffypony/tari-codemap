@@ -1,421 +1,114 @@
 # Sha-P2Pool
 
-**Repository:** https://github.com/tari-project/sha-p2pool
-
-**Branch:** development
-
 ## Project Overview
 
 ## SHA-P2Pool Codebase Overview
 
-### Project Introduction
-
-SHA-P2Pool is a sophisticated decentralized pool mining software for the Tari network implementing SHA-3 algorithm mining. It's a Rust implementation of Bitcoin's original p2pool concept with modifications for the Tari ecosystem, providing instant decentralized payouts through an in-memory side chain called a "share chain." The system enables miners to participate in a decentralized mining pool without central authority, maintaining the decentralized principles of cryptocurrency while providing the benefits of pool mining.
-
-### Architectural Philosophy
-
-SHA-P2Pool implements a **service-oriented architecture with domain-driven design principles**, creating clear boundaries between concerns while maintaining high cohesion within domains. The architecture emphasizes **seamless miner integration** (miners connect to P2Pool exactly as they would to a Tari base node), **consensus reliability** (sophisticated share chain consensus with uncle blocks and LWMA difficulty adjustment), and **network resilience** (comprehensive P2P networking with NAT traversal and intelligent peer management).
+### System Summary
+SHA-P2Pool is a decentralized mining pool for the Tari network implementing peer-to-peer mining with instant payouts. It creates an in-memory side chain ("share chain") that tracks miner contributions and enables distributed mining without central authority. Miners connect to P2Pool exactly as they would to a regular Tari base node, while the system manages consensus, rewards, and network coordination through sophisticated P2P protocols.
 
 ### Directory Structure
-
 ```
 sha-p2pool/
-├── .cargo/                          # Cargo-specific configuration
-│   ├── audit.toml                   # Security audit configuration with ignored advisories
-│   └── config.toml                  # Cross-compilation linkers and CI command aliases
-├── .config/                         # Project-specific configuration
-│   └── nextest.toml                 # Test runner configuration with CI and IntelliJ profiles
-├── .github/                         # GitHub CI/CD and project templates
-│   ├── workflows/                   # GitHub Actions workflows
-│   │   ├── audit.yml                # Daily security audit automation
-│   │   ├── build_binaries.json      # Multi-platform build matrix configuration
-│   │   ├── build_binaries.yml       # Cross-platform binary builds with signing
-│   │   ├── build_docker.yml         # Multi-arch Docker image builds and publishing
-│   │   ├── ci.yml                   # Main CI pipeline (format, clippy, test)
-│   │   ├── coverage.yml             # Source code coverage analysis
-│   │   ├── integration_tests.yml    # Cucumber-based integration testing
-│   │   ├── pr_signed_commits_check.yml # GPG signature validation for PRs
-│   │   ├── pr_title.yml             # Conventional Commits enforcement
-│   │   └── [others]                 # Additional workflow automation
-│   ├── ISSUE_TEMPLATE/              # GitHub issue templates
-│   ├── PULL_REQUEST_TEMPLATE.md     # PR template for structured reviews
-│   └── dependabot.yml               # Dependency update automation
-├── integration_tests/               # End-to-end testing framework
-│   ├── src/                         # Test infrastructure
-│   │   ├── lib.rs                   # Test utilities and helpers
-│   │   ├── p2pool_process.rs        # P2Pool node process management
-│   │   ├── base_node_process.rs     # Tari base node process management
-│   │   ├── world.rs                 # Cucumber World for test coordination
-│   │   └── miner.rs                 # Mining simulation utilities
-│   ├── tests/                       # Cucumber behavior tests
-│   │   ├── features/                # Gherkin feature files
-│   │   │   └── Sync.feature         # P2Pool synchronization test scenarios
-│   │   ├── steps/                   # Test step implementations
-│   │   │   ├── mod.rs               # Common step definitions and utilities
-│   │   │   ├── base_node_steps.rs   # Tari base node test steps
-│   │   │   └── p2pool_steps.rs      # P2Pool node test steps
-│   │   └── cucumber.rs              # Main Cucumber test runner
-│   ├── log4rs/                      # Test logging configuration
-│   │   └── cucumber.yml             # Comprehensive logging setup for integration tests
-│   └── .husky/                      # Git hooks for test automation
-│       └── _/husky.sh              # Husky Git hooks initialization script
-├── p2pool/                          # Main application source code
+├── p2pool/src/                    # Main application source
+│   ├── main.rs                    # Entry point with panic handling and tokio runtime
+│   ├── lib.rs                     # Public API exports (CLI, config, P2P, sharechain)
+│   ├── cli/                       # Command-line interface
+│   │   ├── args.rs                # CLI argument parsing
+│   │   └── commands/
+│   │       ├── util.rs            # **BOOTSTRAP ORCHESTRATOR** - Complete server initialization
+│   │       ├── start.rs           # Start command implementation
+│   │       └── diagnostics.rs     # Network diagnostics mode
+│   └── server/                    # Core server implementation
+│       ├── server.rs              # **SERVICE ORCHESTRATOR** - Manages all async services
+│       ├── config.rs              # Configuration management with builder pattern
+│       ├── grpc/                  # Mining interface layer
+│       │   ├── base_node.rs       # **MINER BRIDGE** - Complete Tari base node API proxy
+│       │   ├── p2pool.rs          # **MINING INTERFACE** - P2Pool-specific operations
+│       │   └── util.rs            # Base node connection utilities
+│       ├── http/                  # REST API and monitoring
+│       │   ├── server.rs          # HTTP server with Axum
+│       │   ├── stats_collector.rs # **OPERATIONAL INTELLIGENCE** - Real-time statistics
+│       │   └── stats/             # Statistics endpoints and models
+│       ├── p2p/                   # Peer-to-peer networking
+│       │   ├── network.rs         # **P2P CORE** - libp2p networking with gossipsub
+│       │   ├── peer_store.rs      # **PEER MANAGEMENT** - Reputation and categorization
+│       │   ├── relay_store.rs     # NAT traversal relay management
+│       │   ├── setup.rs           # libp2p network stack initialization
+│       │   └── messages.rs        # P2P message definitions (CBOR serialization)
+│       └── sharechain/            # **CONSENSUS CORE** - Share chain implementation
+│           ├── p2chain.rs         # **CONSENSUS ENGINE** - Main chain logic and validation
+│           ├── in_memory.rs       # **DOMAIN SERVICE** - ShareChain trait implementation
+│           ├── p2block.rs         # Block structures and builder
+│           ├── p2chain_level.rs   # Height-based block organization
+│           └── lmdb_block_storage.rs # Persistent storage with LMDB
+├── integration_tests/             # End-to-end testing framework
 │   ├── src/
-│   │   ├── main.rs                  # Application entry point with panic handling
-│   │   ├── lib.rs                   # Library interface and public API exports
-│   │   ├── cli/                     # Command-line interface
-│   │   │   ├── args.rs              # CLI argument parsing and validation
-│   │   │   ├── util.rs              # CLI styling and validation utilities
-│   │   │   └── commands/            # Command implementations
-│   │   │       ├── mod.rs           # Command module organization
-│   │   │       ├── start.rs         # Start command delegation
-│   │   │       ├── diagnostics.rs  # Network diagnostics mode
-│   │   │       ├── generate_identity.rs # Peer identity generation
-│   │   │       ├── list_squads.rs  # Squad discovery (placeholder)
-│   │   │       └── util.rs          # **BOOTSTRAP ORCHESTRATOR** - Complete server initialization
-│   │   └── server/                  # Core server implementation
-│   │       ├── server.rs            # **ARCHITECTURAL BACKBONE** - Service orchestration and lifecycle
-│   │       ├── config.rs            # Configuration management with builder pattern
-│   │       ├── grpc/                # gRPC service layer
-│   │       │   ├── mod.rs           # gRPC module organization and constants
-│   │       │   ├── base_node.rs     # **MINER INTEGRATION BRIDGE** - Complete base node API passthrough
-│   │       │   ├── p2pool.rs        # **MINING INTERFACE** - P2Pool-specific mining operations
-│   │       │   ├── util.rs          # Connection utilities and coinbase handling
-│   │       │   └── error.rs         # gRPC error handling
-│   │       ├── http/                # HTTP service layer
-│   │       │   ├── mod.rs           # HTTP module organization
-│   │       │   ├── server.rs        # HTTP server implementation with Axum
-│   │       │   ├── stats_collector.rs # **OPERATIONAL INTELLIGENCE** - Comprehensive statistics collection
-│   │       │   ├── health.rs        # Health check endpoint
-│   │       │   ├── version.rs       # Version endpoint
-│   │       │   └── stats/           # Statistics endpoints and models
-│   │       │       ├── mod.rs       # Stats module with timeout constants
-│   │       │       ├── handlers.rs  # HTTP request handlers for stats
-│   │       │       └── models.rs    # Data structures for stats responses
-│   │       ├── p2p/                 # Peer-to-peer networking
-│   │       │   ├── mod.rs           # P2P module organization and exports
-│   │       │   ├── network.rs       # **DECENTRALIZED NERVOUS SYSTEM** - Core P2P service with libp2p
-│   │       │   ├── messages.rs      # P2P message definitions with CBOR serialization
-│   │       │   ├── peer_store.rs    # **NETWORK INTELLIGENCE** - Comprehensive peer management
-│   │       │   ├── relay_store.rs   # Relay server management for NAT traversal
-│   │       │   ├── setup.rs         # libp2p network stack initialization
-│   │       │   ├── client.rs        # P2P service client for block broadcasting
-│   │       │   └── util.rs          # P2P utilities and identity management
-│   │       ├── diagnostics/         # Network diagnostics and monitoring
-│   │       │   └── mod.rs           # Diagnostics module organization
-│   │       └── sharechain/          # **CONSENSUS CORE** - P2Pool share chain implementation
-│   │           ├── mod.rs           # Sharechain module interface and constants
-│   │           ├── error.rs         # Comprehensive sharechain error handling
-│   │           ├── p2block.rs       # Core P2Pool block structure and builder
-│   │           ├── p2chain.rs       # **CONSENSUS HEART** - Share chain logic with validation
-│   │           ├── p2chain_level.rs # Block level management for height organization
-│   │           ├── in_memory.rs     # **DOMAIN SERVICE** - ShareChain trait implementation
-│   │           └── lmdb_block_storage.rs # LMDB-based persistent storage
-│   └── Cargo.toml                   # Package configuration with dependencies
-├── scripts/                         # Build and deployment scripts
-│   ├── cross_compile_tooling.sh     # Cross-compilation environment setup
-│   ├── cross_compile_ubuntu_18-pre-build.sh # Ubuntu 18.04 cross-compilation setup
-│   ├── file_license_check.sh        # License compliance verification
-│   ├── install_ubuntu_dependencies.sh # System dependency installation
-│   ├── install_ubuntu_dependencies-cross_compile.sh # Cross-compilation dependencies
-│   ├── install_ubuntu_dependencies-rust-arm64.sh # ARM64 Rust toolchain setup
-│   ├── install_ubuntu_dependencies-rust.sh # Rust installation automation
-│   ├── multinet_envs.sh             # Multi-network environment configuration
-│   └── [cross-compilation scripts]  # Platform-specific build scripts
-├── supply-chain/                    # Supply chain security configuration
-│   ├── config.toml                  # Cargo-vet security exemptions and policies
-│   ├── audits.toml                  # Security audit results (currently empty)
-│   └── imports.lock                 # Imported audit data (currently empty)
-├── target/                          # Build artifacts (ignored by git)
-├── Cargo.toml                       # Workspace configuration
-├── Cargo.lock                       # Dependency lock file
-├── Dockerfile                       # Standard container build
-├── Dockerfile.cross-compile         # Multi-platform cross-compilation container
-├── Cross.toml                       # Cross-compilation configuration
-├── log4rs_sample.yml                # Sample logging configuration
-├── log4rs_detailed.yml              # Detailed logging for diagnostics
-└── [configuration files]            # Linting, formatting, toolchain configs
+│   │   ├── world.rs               # Cucumber test coordination
+│   │   ├── p2pool_process.rs      # P2Pool node process management
+│   │   └── base_node_process.rs   # Tari base node process management
+│   └── tests/features/            # Gherkin behavior test scenarios
+├── .github/workflows/             # CI/CD automation
+├── scripts/                       # Build and deployment scripts
+└── supply-chain/                  # Security audit configuration
 ```
 
-### Overall Architecture
+### Architecture
+**Service-Oriented Architecture with Domain-Driven Design**. Central orchestration via `server/server.rs` coordinates async services: gRPC (mining interface), HTTP (monitoring), P2P (networking), and consensus (sharechain). Domain logic encapsulated in sharechain module with clean service boundaries. Event-driven P2P networking with libp2p provides decentralized coordination.
 
-#### **Layered Service-Oriented Architecture with Domain-Driven Design**
+### Key Files
+- **Entry Point**: `p2pool/src/main.rs` - Application bootstrap with tokio runtime
+- **Bootstrap**: `p2pool/src/cli/commands/util.rs` - Complete service initialization orchestrator
+- **Service Hub**: `p2pool/src/server/server.rs` - Coordinates all async services with dependency injection
+- **Mining API**: `p2pool/src/server/grpc/p2pool.rs` - Core mining operations (templates, submissions)
+- **Consensus**: `p2pool/src/server/sharechain/p2chain.rs` - Share chain consensus with LWMA difficulty
+- **Network**: `p2pool/src/server/p2p/network.rs` - P2P networking with gossipsub and sync protocols
+- **Config**: `p2pool/src/server/config.rs` - Server configuration with builder pattern
 
-SHA-P2Pool implements a sophisticated layered architecture with clear separation of concerns and strong domain boundaries:
+### Conventions
+- **Service Pattern**: Files named `*_service.rs` or major modules implement service interfaces
+- **Domain Objects**: `p2block.rs`, `p2chain.rs` contain rich domain logic with validation
+- **Async/Await**: Heavy use of tokio for concurrent operations with proper error handling
+- **Builder Pattern**: Configuration and complex object creation (Config, P2BlockBuilder)
+- **Trait Abstractions**: ShareChain trait abstracts consensus, clean service boundaries
+- **Error Handling**: Comprehensive error types with proper propagation chains
 
-#### 1. **CLI Interface Layer** (`cli/`)
-- **Command Processing**: Comprehensive command-line tool with subcommands for node management, diagnostics, identity generation, and squad discovery
-- **Configuration Management**: Builder pattern for flexible server configuration with extensive customization options and environment variable integration
-- **Bootstrap Orchestration**: `commands/util.rs` serves as the dependency injection container, coordinating complex service initialization sequences
+### Important Notes
+- **Dual Algorithm Support**: SHA3x and RandomX chains run simultaneously with separate but coordinated consensus
+- **Seamless Miner Integration**: `grpc/base_node.rs` provides complete Tari API passthrough - miners need zero configuration changes
+- **Uncle Block Rewards**: Side-chain blocks receive 80% rewards (4 vs 5 shares) to encourage decentralization
+- **Sync Coordination**: Semaphores prevent race conditions during chain operations and peer synchronization
+- **LMDB Storage**: Memory-mapped database for high-performance block storage with automatic resizing
+- **Template Caching**: LRU caches (100 templates per algorithm) for mining performance optimization
 
-#### 2. **Service Orchestration Layer** (`server/`)
-- **Service Coordination**: `server.rs` acts as the architectural backbone, managing service lifecycle and dependency injection
-- **API Gateway Patterns**: Dual-purpose services providing both complete Tari base node proxy functionality and P2Pool-specific mining interfaces
-- **Cross-Cutting Concerns**: Logging, monitoring, configuration, and graceful shutdown coordination
+### Critical Dependencies
+- **Tari Integration**: `minotari_app_grpc`, `minotari_node_grpc_client`, `tari_core` for blockchain compatibility
+- **Networking**: `libp2p` for P2P with gossipsub, mDNS, relay circuits; `tonic` for gRPC services
+- **Storage**: `rkv`/`lmdb` for persistent high-performance storage
+- **Async Runtime**: `tokio` for concurrent operations; `tari_shutdown` for graceful coordination
+- **Serialization**: `serde` with CBOR for P2P messages, JSON for HTTP APIs
 
-#### 3. **API Layer** (`grpc/`, `http/`)
-- **gRPC Services**: 
-  - `base_node.rs` - **Miner Integration Bridge**: Complete Tari base node API passthrough enabling seamless miner integration
-  - `p2pool.rs` - **Mining Interface**: P2Pool-specific mining operations with dual-algorithm support
-- **HTTP Services**: RESTful API for statistics, health monitoring, peer information, and external integrations
-- **Service Integration**: Clean interfaces between external clients and internal business logic
-
-#### 4. **Networking Layer** (`p2p/`)
-- **P2P Networking**: `network.rs` serves as the **Decentralized Nervous System** using libp2p with gossipsub for broadcasting and request-response for synchronization
-- **Peer Management**: `peer_store.rs` provides **Network Intelligence** with sophisticated peer categorization and reputation management
-- **NAT Traversal**: Relay store management enabling nodes behind firewalls to participate via relay connections
-
-#### 5. **Core Business Logic** (`sharechain/`)
-- **Share Chain Consensus**: `p2chain.rs` is the **Consensus Heart** managing in-memory side chain with sophisticated validation and LWMA difficulty adjustment
-- **Domain Services**: `in_memory.rs` implements the ShareChain trait as the primary domain service interface
-- **Block Management**: Comprehensive validation including difficulty, timestamps, uncles, and proportional reward distribution
-
-#### 6. **Storage Layer**
-- **LMDB Persistence**: Lightning Memory-Mapped Database for durable block storage with automatic resizing and migration support
-- **In-Memory Caching**: Performance-optimized caching for active chain operations, peer information, and template management
-- **Statistics Collection**: Real-time metrics aggregation via `stats_collector.rs` providing **Operational Intelligence**
-
-#### 7. **Testing Infrastructure** (`integration_tests/`)
-- **End-to-End Testing**: Comprehensive Cucumber BDD framework with realistic multi-node network simulation
-- **Process Management**: Real process testing with actual binaries and network communication
-- **Test Orchestration**: `world.rs` coordinates complex integration testing scenarios
-
-### Core Business Logic and Workflows
-
-#### **Architectural Pattern: Event-Driven Domain Services with Consensus Coordination**
-
-#### Mining Pool Operation Workflow
-1. **Miner Connection**: Miners connect via `grpc/base_node.rs` proxy that mimics complete Tari base node API for seamless integration
-2. **Template Generation**: `grpc/p2pool.rs` generates block templates via `sharechain/in_memory.rs` including share chain coinbases with proportional reward distribution
-3. **Block Submission**: Miners submit blocks which undergo comprehensive validation via `sharechain/p2chain.rs` consensus logic and are added to the share chain
-4. **Reward Distribution**: Automatic payout calculation based on recent share contributions with configurable share windows
-5. **Main Chain Submission**: Valid blocks are forwarded to actual Tari base node for inclusion in the main blockchain
-
-#### Share Chain Management (Core Consensus)
-1. **Block Addition**: New blocks undergo multi-stage validation including difficulty verification, timestamp checks, output validation, and uncle verification via `sharechain/p2chain.rs`
-2. **Uncle Rewards**: Side-chain blocks receive reduced rewards (4 vs 5 shares) to encourage decentralization while providing incentives
-3. **Chain Reorganization**: Automatic reorg detection and handling when higher difficulty chains are discovered
-4. **Difficulty Adjustment**: Linear Weighted Moving Average (LWMA) algorithm for stable block times and network stability
-5. **Chain Pruning**: Configurable retention windows for memory management via `lmdb_block_storage.rs`
-
-#### P2P Network Operations (Decentralized Coordination)
-1. **Peer Discovery**: mDNS for local network discovery and seed peers for bootstrap connectivity via `p2p/setup.rs`
-2. **Block Broadcasting**: Gossipsub topics for efficient block propagation across the network via `p2p/network.rs`
-3. **Chain Synchronization**: Request-response protocols for missing block retrieval and catch-up synchronization
-4. **Peer Management**: Sophisticated peer categorization via `p2p/peer_store.rs` with reputation tracking
-5. **NAT Traversal**: Relay store management via `p2p/relay_store.rs` for enabling nodes behind NAT/firewalls
-
-### Key Technical Patterns and Architectural Decisions
-
-#### 1. **Domain-Driven Design (DDD) Patterns**
-- **Aggregates**: Share chain as aggregate root with rich business logic in `sharechain/p2chain.rs`
-- **Domain Services**: `sharechain/in_memory.rs` as main domain service coordinating consensus operations
-- **Repository Pattern**: Abstracts storage via `lmdb_block_storage.rs` with clean domain interfaces
-- **Value Objects**: P2Block, P2BlockHeader with domain-specific validation and invariants
-
-#### 2. **Service-Oriented Architecture (SOA) Patterns**
-- **Service Orchestration**: `server/server.rs` coordinates multiple async services with dependency injection
-- **Proxy Pattern**: `grpc/base_node.rs` provides complete API passthrough for seamless miner integration
-- **Facade Pattern**: Simplified interfaces hiding complex subsystem interactions
-- **Strategy Pattern**: Dual-algorithm support (RandomX/SHA3x) with pluggable implementations
-
-#### 3. **Event-Driven Architecture Patterns**
-- **Publisher-Subscriber**: `stats_collector.rs` broadcasts statistics to multiple consumers
-- **Event Sourcing**: P2P network events drive peer management and synchronization decisions
-- **Observer Pattern**: Real-time statistics collection and distribution across components
-
-#### 4. **Async/Await Concurrency Patterns**
-- **Actor-like Concurrency**: Heavy use of tokio runtime for async operations
-- **Channel-based Communication**: Inter-service coordination with proper error handling
-- **Semaphore Coordination**: Sync operations use semaphores to prevent race conditions
-- **Graceful Shutdown**: Coordinated shutdown using tari_shutdown for clean resource cleanup
-
-#### 5. **Network Resilience Patterns**
-- **Circuit Breaker**: Connection management with backoff and retry logic
-- **Bulkhead**: Isolated connection pools for different peer types
-- **Timeout Management**: Configurable timeouts with proper error propagation
-- **Peer Reputation**: Sophisticated scoring system for network reliability
-
-#### 6. **Performance Optimization Patterns**
-- **LRU Caching**: Template and tip info caching for reduced latency
-- **Memory Mapping**: LMDB storage for high-performance persistent data access
-- **Batch Processing**: Efficient block validation and network message processing
-- **Connection Pooling**: Reusable connections with automatic lifecycle management
-
-### Important Dependencies and Integrations
-
-#### **Tari Ecosystem Integration** (Seamless Blockchain Integration)
-- **minotari_app_grpc**: Complete base node gRPC interface compatibility for seamless miner integration
-- **minotari_node_grpc_client**: Client for actual base node communication and blockchain interaction
-- **tari_core**: Consensus rules, block structures, proof-of-work validation, and blockchain primitives
-- **tari_crypto**: Cryptographic primitives, address handling, and key management
-- **tari_common_types**: Shared type definitions across the Tari ecosystem
-
-#### **Networking and Communication** (Decentralized P2P Foundation)
-- **libp2p**: Core P2P networking with gossipsub, mDNS, relay support, and NAT traversal capabilities
-- **tonic**: High-performance gRPC server and client implementation for mining interfaces
-- **axum**: Modern HTTP server framework for REST APIs with middleware support
-- **tokio**: Async runtime providing the foundation for concurrent operations
-
-#### **Storage and Serialization** (Performance and Persistence)
-- **rkv/lmdb**: High-performance persistent storage with memory-mapped access
-- **serde**: Comprehensive serialization framework with CBOR and JSON support
-- **bincode**: Efficient binary serialization for storage operations
-
-#### **Cryptography and Mining** (Blockchain Security)
-- **blake2**: Domain-separated hashing for blocks and security operations
-- **randomx**: RandomX proof-of-work algorithm support for Tari compatibility
-- **hex**: Hexadecimal encoding/decoding utilities for data representation
-
-### Database Schema and Storage Architecture
-
-#### **LMDB Block Storage** (High-Performance Persistence)
-- **Key-Value Structure**: Block hash → Serialized P2Block for efficient retrieval
-- **Migration Support**: Schema versioning for seamless upgrades and compatibility
-- **Automatic Resizing**: Dynamic storage expansion to handle growing chain data
-- **Performance Optimization**: Memory-mapped access patterns for high throughput
-
-#### **In-Memory Data Structures** (Performance-Critical Operations)
-- **Share Chain**: Height-indexed block levels with main/side chain tracking for fast reorganization
-- **Peer Store**: Categorized peer management with health metrics, reputation scoring, and connection tracking
-- **Template Cache**: LRU caches for mining template optimization and reduced latency
-- **Statistics**: Real-time metrics collection and aggregation for monitoring and analysis
-
-### API Structure and Service Interfaces
-
-#### **gRPC Interface (Port 18145)** - Primary Mining Interface
-- **get_new_block_template_with_coinbases**: Mining template generation with share-based rewards
-- **submit_block**: Block submission with comprehensive validation and network propagation
-- **get_tip_info**: Chain tip information with caching for performance
-- **Base Node Proxy**: Complete passthrough of Tari base node APIs for seamless miner integration
-
-#### **HTTP REST API (Configurable Port)** - Monitoring and Management
-- **GET /health**: Service health check for monitoring systems
-- **GET /version**: Version information for compatibility verification
-- **GET /stats**: Comprehensive mining and network statistics
-- **GET /miners**: Active miner information and share distribution
-- **GET /chain**: Share chain status and synchronization information
-- **GET /peer**: Peer connection status and network health
-- **GET /connections**: Detailed network connection information
-
-### Testing Architecture and Quality Assurance
-
-#### **Multi-Layer Testing Strategy**
-- **Unit Testing**: Module-level testing for core logic validation with comprehensive coverage
-- **Integration Testing**: Cucumber BDD framework with Gherkin scenarios for behavior specification
-- **End-to-End Testing**: Multi-node network simulation via `integration_tests/world.rs` for realistic testing environments
-- **Performance Testing**: Load testing scenarios for production readiness validation
-
-#### **Behavior-Driven Development (BDD)**
-- **Feature Files**: Gherkin scenarios in `integration_tests/tests/features/`
-- **Step Definitions**: Reusable test steps in `integration_tests/tests/steps/`
-- **World Coordination**: `world.rs` manages complex multi-node test scenarios
-- **Process Testing**: Real binary execution and network communication validation
-
-#### **Continuous Integration Pipeline**
-- **Multi-Platform Builds**: Linux, macOS, Windows with cross-compilation verification
-- **Code Quality**: Automated clippy, rustfmt, and security audit checks
-- **Test Execution**: Comprehensive unit and integration test runs with proper reporting
-- **Supply Chain Security**: cargo-vet framework for dependency verification
-
-### Build and Deployment Architecture
-
-#### **Development and Cross-Platform Support**
+### Build Commands
 ```bash
-## Development Build
+## Development
 cargo build --release
 ./target/release/sha_p2pool start
 
-## Cross-Platform Compilation
+## Testing
+cargo test
+cargo run --bin cucumber
+
+## Cross-compilation
 cross build --target aarch64-unknown-linux-gnu --release
 ```
 
-#### **Container Deployment Strategy**
-- **Multi-Stage Builds**: Docker with cargo-chef optimization for efficient caching
-- **Cross-Compilation**: Support for x86_64, ARM64, RISC-V on Linux; universal macOS; Windows
-- **Security**: Non-root execution with tini init system for proper signal handling
-- **Configuration**: Environment variable and volume mount support for flexible deployment
-
-#### **Release and Distribution**
-- **Automated Builds**: GitHub Actions for all supported platforms with proper caching
-- **Code Signing**: macOS notarization and Windows signing for distribution trust
-- **Artifacts**: Signed binaries, checksums, and installer packages for easy deployment
-- **Multi-Network Support**: Automatic network targeting based on deployment context
-
-### Security Architecture and Considerations
-
-#### **Network Security**
-- **Peer Authentication**: Identity-based peer verification via `p2p/util.rs` and reputation management
-- **Message Validation**: Comprehensive input validation and sanitization for all network messages
-- **DoS Protection**: Rate limiting, connection management, and resource usage monitoring
-
-#### **Cryptographic Security**
-- **Secure Hashing**: Domain-separated Blake2b hashing for all security-critical operations
-- **Key Management**: Secure identity generation, storage, and rotation capabilities via `cli/commands/generate_identity.rs`
-- **Consensus Validation**: Full proof-of-work verification and blockchain validation
-
-#### **Code Security and Supply Chain**
-- **Memory Safety**: Rust's ownership system preventing memory vulnerabilities and data races
-- **Dependency Auditing**: Automated security scanning with cargo-audit and supply chain verification via `supply-chain/`
-- **Input Validation**: Strict validation of all external inputs with proper error handling
-- **License Compliance**: Automated checking via `scripts/file_license_check.sh` for legal compliance
-
-### Operational Architecture and Monitoring
-
-#### **Observability and Monitoring**
-- **Statistics Collection**: `stats_collector.rs` provides comprehensive operational intelligence for mining performance, network health, and system operation
-- **Diagnostic Mode**: Specialized configuration via `cli/commands/diagnostics.rs` for network analysis and troubleshooting
-- **Health Endpoints**: HTTP endpoints for service monitoring and alerting integration
-- **Structured Logging**: Detailed logging with configurable levels and multiple output destinations
-
-#### **Deployment and Operations**
-- **Resource Requirements**: Moderate CPU and memory requirements with configurable limits
-- **Network Connectivity**: Requires stable internet connection for P2P networking and base node communication
-- **Storage Management**: Configurable storage retention with automatic cleanup capabilities
-- **High Availability**: Support for redundant deployments and failover scenarios
-
-#### **Multi-Network Operations**
-- **Environment Configuration**: Automated network targeting via `scripts/multinet_envs.sh` based on deployment context
-- **Network Isolation**: Support for mainnet, testnet, and development networks
-- **Configuration Management**: Environment-specific settings and parameters
-
-### Development Practices and Quality Standards
-
-#### **Code Quality and Standards**
-- **Linting**: Comprehensive clippy rules via `clippy.toml` for code quality and best practices
-- **Formatting**: Consistent code formatting with rustfmt configuration via `rustfmt.toml`
-- **Documentation**: Inline documentation and comprehensive API documentation
-- **Code Review**: Structured pull request process with automated checks
-
-#### **Commit and Branch Management**
-- **Conventional Commits**: Enforced commit message standards via `.github/workflows/pr_title.yml` for better changelog generation
-- **Signed Commits**: GPG signature verification via `.github/workflows/pr_signed_commits_check.yml` for commit authenticity
-- **Branch Protection**: Automated checks preventing direct pushes to main branches
-
-#### **Dependency and Security Management**
-- **Security Scanning**: Automated vulnerability detection via `.github/workflows/audit.yml`
-- **License Compliance**: Verification of dependency license compatibility via `scripts/file_license_check.sh`
-- **Supply Chain Verification**: Cryptographic verification of dependency integrity via `supply-chain/config.toml`
-
-### Key Architectural Insights from Holistic Analysis
-
-#### **Central Integration Patterns**
-1. **Service Orchestration Hub**: `server/server.rs` serves as the central coordination point, implementing dependency injection and service lifecycle management
-2. **Domain Service Bridge**: `sharechain/in_memory.rs` acts as the primary interface between networking/API layers and core consensus logic
-3. **Miner Integration Proxy**: `grpc/base_node.rs` enables seamless miner adoption by providing complete Tari base node API compatibility
-4. **Network Intelligence Center**: `p2p/peer_store.rs` and `p2p/network.rs` work together to provide sophisticated P2P networking with resilience patterns
-
-#### **Performance-Critical Paths**
-1. **Mining Template Generation**: `grpc/p2pool.rs` → `sharechain/in_memory.rs` → `sharechain/p2chain.rs` with LRU caching
-2. **Block Submission Pipeline**: Validation → `sharechain/p2chain.rs` → `p2p/network.rs` broadcasting → `lmdb_block_storage.rs` persistence
-3. **Chain Synchronization**: `p2p/network.rs` → `peer_store.rs` → `sharechain/in_memory.rs` with semaphore coordination
-
-#### **Consensus and Network Coordination**
-- **Dual-Algorithm Support**: Sophisticated coordination between RandomX and SHA3x chains with shared infrastructure
-- **Uncle Block Management**: Incentivized decentralization through reduced but significant uncle rewards
-- **Peer Reputation System**: Advanced networking with categorized peers and intelligent selection strategies
-
-This codebase represents a sophisticated implementation of decentralized mining pool technology, demonstrating advanced Rust programming patterns, comprehensive networking protocols, rigorous testing methodologies, and integration with blockchain consensus mechanisms. The architecture balances performance, security, and maintainability while providing a robust foundation for decentralized mining operations in the Tari ecosystem. The holistic analysis reveals a well-architected system with clear separation of concerns, sophisticated networking capabilities, and comprehensive operational tooling.
+### Development Gotchas
+- **Service Initialization Order**: `cli/commands/util.rs` coordinates complex bootstrap sequence - modify carefully
+- **Consensus Validation**: Chain operations in `p2chain.rs` use semaphores - never bypass sync coordination
+- **Peer Categories**: Peer store maintains whitelist/greylist/blacklist - understand reputation system before modifying
+- **Template Generation**: Mining templates are heavily cached - clear caches when changing consensus rules
+- **Chain Reorganization**: P2Chain handles reorgs automatically but may affect active mining operations
+- **NAT Traversal**: Relay functionality requires proper configuration for nodes behind firewalls
 
 ## Codebase Structure
 
@@ -652,3 +345,4 @@ This codebase represents a sophisticated implementation of decentralized mining 
 | `config.toml` | Cargo-vet supply chain security configuration defining audit policies for dependencies. Configures security exemptions for hundreds of crates with safe-to-deploy criteria, specifies audit-as-crates-io policies for Tari ecosystem components, and manages dependency verification requirements. Critical for ensuring supply chain security and compliance with security standards for production deployments. |
 | `imports.lock` | [GENERATED] Cargo-vet imports lock file for tracking imported security audit data from external sources. Currently empty, indicating no external audit data has been imported yet. Part of cargo-vet supply chain security framework that enables importing and verifying cryptographically signed audit data from trusted organizations and maintainers. Will contain locked import records when audit data is imported from external sources to enhance dependency security verification coverage. |
 
+---

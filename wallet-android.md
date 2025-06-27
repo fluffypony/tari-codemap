@@ -1,393 +1,86 @@
 # Wallet-Android
 
-**Repository:** https://github.com/tari-project/wallet-android
-
-**Branch:** release/1.1.0
-
 ## Project Overview
 
-## Tari Wallet Android Application - Technical Overview
+## Tari Wallet Android - Codebase Overview
+
+### System Summary
+Cryptocurrency wallet Android app with native Rust core accessed via FFI. MVVM architecture with mixed XML Views + Jetpack Compose UI, Tor privacy integration, and biometric security.
 
 ### Directory Structure
-
 ```
-tari-android/
-├── app/                               # Main Android application module
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/tari/android/wallet/
-│   │   │   │   ├── application/       # App lifecycle and core setup
-│   │   │   │   ├── data/              # Repositories and data layer
-│   │   │   │   ├── di/                # Dependency injection (Dagger 2)
-│   │   │   │   ├── ffi/               # Native Rust FFI integration
-│   │   │   │   ├── infrastructure/    # Services and utilities
-│   │   │   │   ├── model/             # Data models and entities
-│   │   │   │   ├── navigation/        # Navigation framework
-│   │   │   │   ├── notification/      # Push notifications
-│   │   │   │   ├── tor/               # Tor proxy integration
-│   │   │   │   ├── ui/                # UI components and screens
-│   │   │   │   └── util/              # Extensions and utilities
-│   │   │   ├── cpp/                   # JNI C++ bridge to Rust
-│   │   │   ├── assets/                # Tor configs and resources
-│   │   │   └── res/                   # Android resources
-│   │   ├── androidTest/               # Instrumented tests
-│   │   └── test/                      # Unit tests
-│   └── build.gradle.kts               # Module build config
-├── buildSrc/                          # Gradle build customization
-│   └── src/main/kotlin/
-│       ├── Dependencies.kt            # Centralized versions
-│       ├── TariBuildConfig.kt         # Build configuration
-│       └── download-libwallet.gradle.kts  # Native lib management
-├── libwallet/                         # Native Rust libraries
-│   ├── arm64-v8a/                     # ARM64 architecture
-│   └── x86_64/                        # x86_64 architecture
-├── yatlib/                            # YAT integration module
-└── docs/                              # Documentation
+app/src/main/java/com/tari/android/wallet/
+├─ application/     # App lifecycle, WalletManager setup
+├─ data/           # Repositories, SharedPreferences access
+├─ di/             # Dagger 2 dependency injection modules
+├─ ffi/            # Native Rust FFI wrapper classes
+├─ infrastructure/ # Services, networking, Tor proxy
+├─ model/          # Data classes and entities
+├─ navigation/     # Custom navigation system
+├─ notification/   # Firebase push notifications
+├─ tor/            # Tor proxy integration
+├─ ui/             # Activities, fragments, ViewModels
+└─ util/           # Extensions and helper utilities
 
+buildSrc/src/main/kotlin/
+├─ Dependencies.kt    # Centralized version management
+├─ TariBuildConfig.kt # Build configuration
+└─ download-libwallet.gradle.kts # Native library management
+
+libwallet/           # Native Rust libraries (arm64/x86_64)
+yatlib/             # YAT emoji address integration
 ```
 
-### Architecture Overview
+### Architecture
+MVVM + Clean Architecture. Native Rust wallet via FFI → JNI C++ bridge → Kotlin wrappers. Dagger 2 for DI. StateFlow/LiveData for reactive UI. Custom navigation on top of Navigation Component.
 
-The Tari Wallet Android application follows a layered architecture pattern combining MVVM (Model-View-ViewModel) with clean architecture principles. The system integrates native Rust wallet functionality through FFI (Foreign Function Interface) with a modern Android UI built using both traditional Views and Jetpack Compose.
+### Key Files
+- Entry: `WalletApplication.kt` (app initialization)
+- Core: `WalletManager.kt` (wallet lifecycle coordinator)
+- FFI: `app/src/main/cpp/jniWallet.cpp` (native bridge)
+- Config: `buildSrc/Dependencies.kt` (versions)
+- Native: `libwallet/` directory (core Rust implementation)
 
-#### Core Architecture Layers
+### Conventions
+- ViewModels named `[Feature]ViewModel`
+- Repositories follow pattern: `[Entity]Repository`
+- FFI classes extend `FFIBase` for memory management
+- All async operations use Coroutines with proper scope
+- UI state via StateFlow, events via custom EffectFlow
+- Modular dialogs via `ModularDialog` builder pattern
 
-1. **Presentation Layer (UI)**
-   - Mixed UI approach: Traditional XML Views + Jetpack Compose
-   - MVVM pattern with ViewModels and LiveData/StateFlow
-   - Modular dialog system for flexible UI composition
-   - Custom Tari design system with themed components
+### Important Rules
+- **FFI Memory**: Always use FFIBase.dispose() to prevent leaks
+- **Native Threads**: FFI calls must be on background threads
+- **ProGuard**: Keep all FFI classes, models, and YAT integration
+- **Security**: Never log/expose private keys or seed phrases
+- **Architecture**: Place business logic in ViewModels, not fragments
+- **State**: Use StateHandlers for complex reactive state management
 
-2. **Domain Layer**
-   - Business logic encapsulated in ViewModels
-   - Use cases implemented within repository pattern
-   - State management through reactive streams
+### Critical Dependencies
+- **Native**: libminotari_wallet_ffi (core wallet), OpenSSL, SQLite
+- **Android**: AndroidX, Compose, Coroutines, Dagger 2
+- **Network**: Retrofit, OkHttp, Tor proxy
+- **Security**: Biometric, encrypted SharedPreferences
+- **External**: Sentry (crashes), Firebase (push), YAT (emoji addresses)
 
-3. **Data Layer**
-   - Repository pattern for data access abstraction
-   - SharedPreferences for local configuration
-   - FFI bridge to native Rust wallet implementation
-   - Network integration for blockchain and API communication
+### Build Gotchas
+- Native libraries downloaded via Gradle task before build
+- Requires `secret.properties`, `sentry.properties`, `yat.properties`
+- ProGuard rules critical for FFI layer preservation
+- Different product flavors: regular vs privacy (no analytics)
+- Version code auto-generated from git commit count
 
-4. **Infrastructure Layer**
-   - Dependency injection via Dagger 2
-   - Tor proxy for privacy-enhanced networking
-   - Logging and crash reporting (Sentry)
-   - Backup and restoration system
+### Database
+- Core data in native SQLite via Rust FFI (transactions, UTXOs, contacts)
+- Android SharedPreferences for settings and config
+- No Room or direct SQLite usage - all through native layer
 
-#### Key Architectural Components
-
-##### FFI Integration
-The app's core wallet functionality is implemented in Rust and accessed through JNI:
-- C++ bridge layer (`app/src/main/cpp/`) handles native method calls
-- Kotlin FFI wrapper classes provide type-safe access to native functions
-- Automatic memory management through FFIBase class hierarchy
-
-##### State Management
-- **WalletManager**: Central coordinator for wallet lifecycle
-- **StateHandlers**: Reactive state management for balance, connections, base nodes
-- **EffectFlow**: Custom flow utilities for one-time UI events
-
-##### Navigation
-- Custom navigation system built on top of Android Navigation Component
-- Type-safe navigation through sealed class hierarchy
-- Deep link support for external app integration
-
-### Core Business Logic
-
-#### Wallet Management Workflow
-1. **Wallet Creation**
-   - Generate seed phrase through FFI
-   - Create wallet files and configuration
-   - Initialize base node connections
-   - Setup Tor proxy if privacy mode enabled
-
-2. **Transaction Flow**
-   - Contact selection or address input
-   - Amount entry with fee estimation
-   - Transaction construction via FFI
-   - Broadcasting to base nodes
-   - Status tracking through callbacks
-
-3. **Balance and UTXO Management**
-   - Real-time balance updates from FFI callbacks
-   - UTXO coin control with join/split operations
-   - Transaction history with contact integration
-
-4. **Backup and Recovery**
-   - Seed phrase display and verification
-   - Cloud backup via Google Drive
-   - Password-protected local backups
-   - Restoration from seed phrase or backup file
-
-#### Security Features
-1. **Authentication**
-   - Biometric authentication (fingerprint/face)
-   - PIN code fallback
-   - Screen recording protection
-   - Address poisoning detection
-
-2. **Privacy**
-   - Tor integration for network anonymization
-   - Optional bridge configuration
-   - Privacy mode with reduced telemetry
-
-### Key Technical Patterns
-
-#### Dependency Injection
-```kotlin
-@Singleton
-@Component(modules = [ApplicationModule::class, RetrofitModule::class, ...])
-interface ApplicationComponent {
-    fun inject(activity: HomeActivity)
-    fun inject(viewModel: HomeViewModel)
-    // ... 50+ injection targets
-}
-```
-
-#### Repository Pattern
-```kotlin
-@Singleton
-class ContactsRepository @Inject constructor(
-    private val db: ContactsDb,
-    private val scope: CoroutineScope
-) {
-    private val _contactList = MutableStateFlow<List<Contact>>(emptyList())
-    val contactList: StateFlow<List<Contact>> = _contactList
-    
-    fun updateContact(contact: Contact) {
-        // Update logic
-    }
-}
-```
-
-#### FFI Wrapper Pattern
-```kotlin
-class FFIWallet(pointer: FFIPointer) : FFIBase(pointer) {
-    external fun getBalance(): FFIBalance
-    external fun sendTari(destination: FFITariWalletAddress, amount: Long): FFITxId
-    // Native methods wrapped for Kotlin usage
-}
-```
-
-#### Modular Dialog System
-```kotlin
-val dialog = ModularDialog(context, ModularDialogArgs(
-    modules = listOf(
-        HeadModule("Title"),
-        BodyModule("Description"),
-        ButtonModule("OK") { dismiss() }
-    )
-))
-```
-
-### Important Dependencies
-
-#### Core Android
-- **AndroidX**: Core Android components and Jetpack libraries
-- **Compose**: Modern declarative UI toolkit (migration in progress)
-- **Coroutines**: Asynchronous programming with Kotlin
-- **Dagger 2**: Compile-time dependency injection
-
-#### Networking
-- **Retrofit**: REST API client for backend communication
-- **OkHttp**: HTTP client with interceptor support
-- **Tor Proxy**: Privacy-enhanced networking
-
-#### Security & Storage
-- **Biometric**: AndroidX biometric authentication
-- **SQLite**: Local database (via native library)
-- **SharedPreferences**: Configuration storage
-
-#### Third-Party Integrations
-- **Sentry**: Crash reporting and performance monitoring
-- **Firebase**: Cloud messaging for push notifications
-- **YAT**: Emoji alias token integration
-- **Lottie**: Animation support
-
-#### Native Libraries
-- **libminotari_wallet_ffi**: Core Rust wallet implementation
-- **OpenSSL**: Cryptographic operations
-- **SQLite**: Database functionality
-
-### Database Schema
-
-The wallet uses SQLite through the native Rust library for core wallet data:
-
-#### Wallet Database (Native)
-- **Transactions**: All transaction records
-- **Contacts**: Wallet contact information
-- **UTXOs**: Unspent transaction outputs
-- **Wallet State**: Synchronization and configuration
-
-#### Android Local Storage
-- **SharedPreferences**: App configuration, settings
-- **Paper Database**: Simple key-value storage for caching
-- **Files**: Log files, backup files
-
-### API Structure
-
-#### Internal APIs (FFI)
-The app communicates with the native wallet through JNI:
-```cpp
-// Example: jniWallet.cpp
-JNIEXPORT jobject JNICALL
-Java_com_tari_android_wallet_ffi_FFIWallet_getBalance(JNIEnv *env, jobject thiz) {
-    // Native balance retrieval
-}
-```
-
-#### External APIs
-1. **Airdrop API** (`/api/v1/`)
-   - User registration
-   - Mining statistics
-   - Reward distribution
-
-2. **Push Notification API**
-   - Token registration
-   - Notification delivery
-
-3. **YAT API**
-   - Emoji ID resolution
-   - Address lookup
-
-### Testing Approach
-
-#### Unit Tests
-- Model validation tests
-- Utility function tests
-- Repository logic tests
-
-#### Instrumented Tests
-- FFI integration tests
-- Database operations
-- UI component tests
-
-#### Test Infrastructure
-```kotlin
-@RunWith(AndroidJUnit4::class)
-class FFIWalletTests {
-    @Test
-    fun testWalletCreation() {
-        // Test wallet lifecycle
-    }
-}
-```
-
-#### Mock Data Support
-- DebugConfig provides mock transactions, contacts, UTXOs
-- Enables UI development without blockchain connection
-
-### Build and Deployment
-
-#### Build Variants
-1. **Debug**: Development build with debugging enabled
-2. **Release**: Production build with ProGuard optimization
-
-#### Product Flavors
-1. **Regular**: Standard build with all features
-2. **Privacy**: Enhanced privacy without analytics
-
-#### Build Process
-1. Download native libraries via Gradle task
-2. Compile Kotlin/Java code
-3. Link native libraries
-4. Package APK/AAB
-
-#### Configuration Files
-- `secret.properties`: API keys and secrets
-- `sentry.properties`: Crash reporting configuration
-- `yat.properties`: YAT service credentials
-
-#### ProGuard Rules
-Critical rules preserve:
-- FFI layer classes
-- Model classes and enums
-- Callback interfaces
-- YAT integration code
-
-#### Deployment
-1. **Google Play Store**: Regular flavor
-2. **F-Droid**: Privacy flavor without proprietary dependencies
-3. **Direct APK**: Available from GitHub releases
-
-#### Version Management
-- Version code generated from git commit count
-- Semantic versioning for version names
-- Network-specific builds with different configurations
-
-### Key Workflows
-
-#### 1. New User Onboarding
-```
-StartActivity -> OnboardingFlowActivity -> IntroductionFragment
-    ↓
-CreateWalletFragment (generates seed phrase)
-    ↓
-LocalAuthFragment (setup PIN/biometrics)
-    ↓
-HomeActivity (main wallet interface)
-```
-
-#### 2. Send Transaction Flow
-```
-HomeFragment -> TransferFragment -> ContactSelectionFragment
-    ↓
-AddAmountFragment (with fee calculation)
-    ↓
-AddNoteFragment (optional message)
-    ↓
-ConfirmFragment (review transaction)
-    ↓
-FinalizeSendTxFragment (broadcast)
-```
-
-#### 3. Wallet Restoration
-```
-WalletRestoreActivity -> ChooseRestoreOptionFragment
-    ↓
-InputSeedWordsFragment (24-word validation)
-    ↓
-WalletRestoringFragment (sync progress)
-    ↓
-HomeActivity (restored wallet)
-```
-
-#### 4. Backup Creation
-```
-BackupSettingsFragment -> WriteDownSeedPhraseFragment
-    ↓
-VerifySeedPhraseFragment (word verification)
-    ↓
-BackupManager (cloud/local storage)
-```
-
-### Security Considerations
-
-1. **Private Key Management**: Keys never leave native layer
-2. **Screen Protection**: Prevents screenshots of sensitive data
-3. **Address Validation**: Emoji ID system reduces typos
-4. **Network Privacy**: Tor support for anonymized connections
-5. **Backup Encryption**: Password-protected backup files
-6. **Biometric Auth**: Hardware-backed authentication
-
-### Performance Optimizations
-
-1. **Lazy Loading**: Fragments and views loaded on demand
-2. **Coroutine Usage**: Non-blocking async operations
-3. **State Caching**: Reactive state prevents unnecessary updates
-4. **Native Performance**: Core logic in optimized Rust
-5. **Resource Management**: Automatic cleanup via lifecycle
-
-### Future Considerations
-
-1. **Compose Migration**: Ongoing transition from XML to Compose
-2. **Modularity**: Further modularization of features
-3. **Testing**: Expanded test coverage and automation
-4. **Performance**: Continued optimization of sync and UI
-5. **Features**: Additional DeFi and privacy features
-
-This technical overview provides a comprehensive understanding of the Tari Wallet Android application architecture, enabling new developers to quickly understand the codebase structure and contribute effectively to the project.
+### Testing
+- Unit tests for utilities and repositories
+- Instrumented tests for FFI integration
+- Mock data available via DebugConfig for UI development
+- Test classes follow pattern: `[Feature]Tests`
 
 ## Codebase Structure
 
@@ -469,6 +162,7 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `jniTariCoinPreview.cpp` | JNI wrapper for coin preview functionality in transaction preparation. Handles coin selection preview, UTXO analysis, fee estimation preview before transaction commitment. Used for transaction fee calculation and coin selection optimization in the wallet. |
 | `jniTariFeePerGramStat.cpp` | JNI wrapper for individual fee-per-gram statistics. Provides access to single fee statistic data points including fee rate, order, and statistical measures. Used for granular fee analysis and transaction fee optimization in the native wallet layer. |
 | `jniTariFeePerGramStats.cpp` | JNI wrapper for fee-per-gram statistics collection. Handles aggregated fee statistics, fee estimation algorithms, and historical fee data analysis. Critical for dynamic fee calculation and providing users with optimal transaction fee recommendations based on network conditions. |
+| `jniTariPaymentRecord.cpp` | JNI C++ implementation for loading Tari payment record data from native wallet library. Exports: jniLoadData() native function. Dependencies: wallet.h (Tari core library), jniCommon.cpp utilities. Used by: FFITariPaymentRecord.jniLoadData(). Handles marshalling of payment record fields including payment reference (32-byte array), amount, block height, mined timestamp, and direction from native TariPaymentRecord struct to Java object fields. |
 | `jniTariTransportConfig.cpp` | JNI wrapper for Tari network transport configuration. Handles transport protocol settings (TCP, Tor), connection parameters, encryption options, and network routing configuration. Essential for configuring peer-to-peer communication protocols in the wallet. |
 | `jniTariUnblindedOutput.cpp` | JNI wrapper for unblinded output operations in transaction processing. Handles UTXO unblinding, value extraction, ownership verification. Critical for transaction privacy and confidential transaction handling in the Tari protocol. |
 | `jniTariUtxo.cpp` | JNI wrapper for UTXO (Unspent Transaction Output) management. Handles UTXO creation, validation, spending, and tracking. Core component for transaction input/output handling and wallet balance management in the native layer. |
@@ -740,6 +434,8 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `FFISeedWords.kt` | FFI wrapper for BIP39 seed phrase operations from native wallet. Provides Kotlin interface to native seed phrase functions including mnemonic generation, validation, entropy conversion, and wallet recovery operations. Critical for wallet backup and restoration functionality. |
 | `FFITariBaseNodeState.kt` | FFI wrapper for base node state information from native wallet. Provides Kotlin interface to native base node connection status, sync state, chain height, and network information. Used for monitoring blockchain synchronization progress and connectivity health. |
 | `FFITariCoinPreview.kt` | FFI wrapper for coin preview functionality from native wallet. Provides Kotlin interface to coin selection preview, UTXO analysis, and fee estimation before transaction commitment. Used for transaction fee calculation and coin selection optimization. |
+| `FFITariPaymentRecord.kt` | FFI wrapper class for Tari payment record data from native wallet library. Extends FFIBase for pointer management. Exports: FFITariPaymentRecord class with payment fields. Dependencies: FFIBase, FFIPointer for native interop. Used by: TariPaymentRecord model class constructor. Contains fields for payment reference (ByteArray), amount, block height, mined timestamp, and direction. Calls native jniLoadData() to populate fields from C++ layer. |
+| `FFITariPaymentRecords.kt` | FFI wrapper class for a collection of Tari payment records from native wallet library. Extends FFIIterableBase for iterable collection functionality. Exports: FFITariPaymentRecords class with iteration methods. Dependencies: FFIIterableBase, FFITariPaymentRecord, FFIPointer, FFIError. Used by: Payment history retrieval and processing. Implements getLength() and getAt() methods for accessing individual payment records by index, with native JNI calls for data retrieval and memory management. |
 | `FFITariTransportConfig.kt` | FFI wrapper for Tari transport configuration from native wallet. Provides Kotlin interface to native transport protocol settings, connection parameters, encryption options, and network routing configuration for peer-to-peer communication. |
 | `FFITariTypeTag.kt` | FFI wrapper for Tari type tag enumeration from native wallet. Provides type identification and validation for various Tari protocol objects. Used for type safety and object categorization in native layer communications and validation operations. |
 | `FFITariUnblindedOutput.kt` | FFI wrapper for unblinded output operations from native wallet. Provides Kotlin interface to UTXO unblinding, value extraction, and ownership verification. Critical for transaction privacy and confidential transaction handling in the Tari protocol. |
@@ -839,6 +535,7 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `TariBaseNodeState.kt` | Data model representing the state of a Tari base node connection. Exports: TariBaseNodeState data class. Contains heightOfLongestChain (BigInteger) and nodeId (String) properties. Includes constructor from FFITariBaseNodeState for FFI bridge integration. Used by wallet connection status tracking and synchronization components. Implements Parcelable for intent serialization. |
 | `TariCoinPreview.kt` | Data model for previewing Tari coin transaction details before execution. Exports: TariCoinPreview data class. Contains vector (TariVector) and feeValue (MicroTari) properties. Includes constructor from FFITariCoinPreview for native library integration. Used by transaction preview and fee estimation components. Implements Parcelable for activity state preservation. |
 | `TariContact.kt` | Core contact data model representing a wallet user with alias. Exports: TariContact data class. Contains walletAddress (TariWalletAddress), alias (String), and isFavorite (Boolean) properties. Includes constructor from FFIContact for native library bridge. Used throughout contact management, transaction sending, and UI display components. Implements Parcelable for intent passing and state preservation. |
+| `TariPaymentRecord.kt` | Data model class representing a Tari payment record with payment reference, amount, block height, and mined timestamp. Implements Parcelable for Android bundle serialization. Exports: TariPaymentRecord data class, Direction enum (Inbound/Outbound/Change). Dependencies: FFITariPaymentRecord for FFI interop, toHex extension function. Used by: Payment history UI components, transaction processing. Includes constructor to convert from FFI object and Direction enum with companion object for value conversion. |
 | `TariUnblindedOutput.kt` | Data model for unblinded transaction outputs in the Tari protocol. Exports: TariUnblindedOutput data class. Contains json (String) property storing the serialized output data. Includes constructor from FFITariUnblindedOutput for native library integration. Used by transaction processing and UTXO management components. Implements Parcelable for cross-activity communication. |
 | `TariUtxo.kt` | UTXO (Unspent Transaction Output) data model for the Tari blockchain. Exports: TariUtxo data class, UtxoStatus enum. Contains commitment, value, minedHeight, timestamp, lockHeight, and status properties. Includes comprehensive UtxoStatus enum with 12 different states (Unspent, Spent, Encumbered variants, etc.). Used by wallet balance calculations, transaction building, and UTXO management UI. Implements Parcelable and includes FFI constructor. |
 | `TariVector.kt` | Vector data structure wrapper for collections of Tari blockchain objects from native library. Exports: TariVector data class. Contains len, cap, itemsList (List<TariUtxo>), and longs (List<Long>) properties. Maps FFITariVector collections to Kotlin collections. Used by transaction building, UTXO selection, and batch operations. Implements Parcelable for state persistence. |
@@ -1586,16 +1283,6 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `AddAmountFragment.kt` | Fragment for entering transaction amount with fee selection and validation. |
 | `AddAmountModel.kt` | Data model for amount entry screen with transaction data and validation states. |
 | `AddAmountViewModel.kt` | Transaction amount input ViewModel managing fee calculation and transaction preparation. Extends CommonViewModel with SavedStateHandle for navigation parameters. Exports: UI state with contact, amount, fee data, validation states. Dependencies: NetworkConnectionStateHandler, fee calculation systems. Used by: AddAmount screen in send transaction flow. Features fee calculation with multiple speed options (slow/medium/fast), amount validation, contact management, note handling, network connectivity checking, and transaction data preparation for confirmation step. Critical component for transaction creation workflow. |
-| `FeeData.kt` | Data class for transaction fee information. Exports: FeeData class. Contains feePerGram and calculatedFee as MicroTari values. Used in send transaction flow to store and pass fee calculation results. Dependencies: MicroTari model. Simple container for fee-related data in transaction creation process. |
-| `FeePerGramOptions.kt` | Data class for fee per gram options in transaction sending. Exports: FeePerGramOptions data class with NetworkSpeed, slow, medium, fast MicroTari values. Constructor accepts FFIFeePerGramStats from native layer. Maps FFI fee statistics to speed options based on available block data. Complex logic handles 1-3 blocks with min/max/average mapping. Dependencies: FFIFeePerGramStats, MicroTari, NetworkSpeed. Used in fee selection UI. |
-
-###### app/src/main/java/com/tari/android/wallet/ui/screen/send/addAmount/feeModule/
-
-| File | Description |
-|------|-------------|
-| `FeeModule.kt` | Module for transaction fee configuration and network speed selection. |
-| `FeeModuleView.kt` | View for transaction fee selection interface. |
-| `NetworkSpeed.kt` | Enum defining network speed options for transaction fee calculation. |
 
 ###### app/src/main/java/com/tari/android/wallet/ui/screen/send/addAmount/keyboard/
 
@@ -2185,11 +1872,6 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `vector_info_circle.xml` | Vector drawable information icon in circular background. Info 'i' symbol used for displaying additional information, help text, and informational messages throughout the app. Used by: Information buttons, help indicators, info dialogs, contextual information displays. Provides clear visual indication for accessing additional information and explanatory content. |
 | `vector_introduction_tari_logo.xml` | Vector drawable Tari logo for introduction and onboarding screens. Official Tari project logo used in app introduction, onboarding flow, and branding elements. Used by: Introduction screens, onboarding flow, splash screens, branding displays. Provides official Tari brand identity and visual consistency in introductory and branding contexts throughout the app. |
 | `vector_logs_filter.xml` | Vector drawable filter icon for log filtering functionality. Filter or funnel icon used in debug and logging screens to filter log entries by type, level, or content. Used by: Debug log screens, log filtering UI, developer tools, diagnostic interfaces. Provides clear visual indication for filtering and searching through application logs and debug information. |
-| `vector_network_fast.xml` | Vector drawable icon indicating fast network connection speed. Fast/high-speed network icon used to show optimal network performance and connectivity status. Used by: Network speed indicators, connection quality UI, performance displays, network status screens. Provides visual feedback for fast network connections and optimal synchronization performance. |
-| `vector_network_medium.xml` | Vector drawable icon indicating medium network connection speed. Medium/moderate-speed network icon used to show average network performance and connectivity status. Used by: Network speed indicators, connection quality UI, performance displays, network status screens. Provides visual feedback for moderate network connections and standard synchronization performance. |
-| `vector_network_segmented_picker_bg.xml` | Drawable background for network segmented picker control. Background styling for segmented control used to select network speed or connection options. Used by: Network speed selection UI, segmented controls, network preference pickers. Provides consistent background styling for segmented picker components in network configuration interfaces. |
-| `vector_network_segmented_picker_selected_bg.xml` | Drawable background for selected state in network segmented picker control. Selected state background styling for segmented control used in network speed or connection selection. Used by: Network speed selection UI, segmented controls selected state, network preference pickers. Provides visual emphasis for selected options in network configuration segmented controls. |
-| `vector_network_slow.xml` | Vector drawable icon indicating slow network connection speed. Slow/low-speed network icon used to show poor network performance and connectivity status. Used by: Network speed indicators, connection quality UI, performance displays, network status screens. Provides visual feedback for slow network connections and degraded synchronization performance. |
 | `vector_network_state_base_node.xml` | Vector drawable icon for base node network state indicator. Base node icon used to show blockchain base node connection status and network configuration. Used by: Network status indicators, base node connection UI, blockchain connectivity displays. Provides visual representation of base node connection state and blockchain network status. |
 | `vector_network_state_full.xml` | Vector drawable icon for full network connectivity state. Full signal or complete connection icon used to show optimal network connectivity and complete synchronization. Used by: Network status indicators, connectivity displays, sync status UI, network health screens. Provides visual feedback for full network connectivity and complete blockchain synchronization. |
 | `vector_network_state_limited.xml` | Vector drawable icon for limited network connectivity state. Limited signal or partial connection icon used to show restricted network connectivity or partial synchronization. Used by: Network status indicators, connectivity displays, sync status UI, network health screens. Provides visual feedback for limited network connectivity and partial blockchain synchronization. |
@@ -2271,7 +1953,6 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `dialog_module_button.xml` | Dialog module for button component. LinearLayout containing TariButton with gradient background, standard dimensions, and theming. Used as reusable button component in dialog implementations with consistent styling and behavior. |
 | `dialog_module_checked.xml` | Dialog module for checked/selected state indicator. Visual component showing selected or confirmed states in dialogs with checkmark or selection indicators. Used for multi-step confirmations and selections. |
 | `dialog_module_connection_statuses.xml` | Dialog module for connection status display. Shows network connection states including base node connectivity, Tor status, and sync progress. Used in network diagnostics and connection troubleshooting dialogs. |
-| `dialog_module_fee.xml` | Dialog module for transaction fee display and selection. Shows fee options, amounts, and network conditions affecting transaction costs. Used in transaction confirmation and fee customization dialogs. |
 | `dialog_module_head.xml` | Dialog module for header component. FrameLayout with centered heading text, optional secondary button, and optional icon button. Used for dialog titles with action buttons and proper spacing for modular dialog construction. |
 | `dialog_module_icon.xml` | Dialog module for icon display. FrameLayout with circular TariPrimaryBackgroundConstraint container (80dp) holding centered icon ImageView. Used for prominent icon display in dialogs with elevation and proper spacing. |
 | `dialog_module_image.xml` | Dialog module for image display. Component for showing images in dialogs including icons, illustrations, or user-generated content. Used for visual communication and enhanced dialog presentation. |
@@ -2494,3 +2175,4 @@ This technical overview provides a comprehensive understanding of the Tari Walle
 | `build.gradle` | Build script for YAT library module. Gradle build configuration for YAT (Your Alias Token) integration module including dependencies, compilation settings, and library packaging. |
 | `yat-lib-development-snapshot.aar` | YAT (Your Alias Token) library Android Archive. Pre-compiled library containing YAT SDK functionality for alias token integration, address resolution, and YAT ecosystem features. |
 
+---

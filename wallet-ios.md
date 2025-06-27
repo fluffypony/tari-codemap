@@ -1,486 +1,57 @@
 # Wallet-Ios
 
-**Repository:** https://github.com/tari-project/wallet-ios
-
-**Branch:** master
-
 ## Project Overview
 
-## Tari Aurora iOS Wallet - Technical Documentation
+## Tari Aurora iOS Wallet
 
-### Table of Contents
-1. [Directory Structure](#directory-structure)
-2. [Architecture Overview](#architecture-overview)
-3. [Core Business Logic](#core-business-logic)
-4. [Key Technical Patterns](#key-technical-patterns)
-5. [Dependencies and Integrations](#dependencies-and-integrations)
-6. [Database Schema](#database-schema)
-7. [API Structure](#api-structure)
-8. [Testing Approach](#testing-approach)
-9. [Build and Deployment](#build-and-deployment)
+### System Summary
+Cryptocurrency wallet app for Tari blockchain with privacy-first architecture. Hybrid Swift/UIKit and SwiftUI app with Rust core via FFI, using Tor networking and MVVM pattern. Supports transactions, contacts, backups, and mining integration.
 
 ### Directory Structure
-
 ```
-wallet-ios/
-├── .github/                      # GitHub configuration
-│   ├── ISSUE_TEMPLATE/          # Bug report templates
-│   └── PULL_REQUEST_TEMPLATE.md # PR template with checklist
-│
-├── MobileWallet/                 # Main application code
-│   ├── AppDelegate.swift        # App lifecycle management
-│   ├── SceneDelegate.swift      # Scene lifecycle (iOS 13+)
-│   ├── Info.plist              # App configuration
-│   │
-│   ├── Assets.xcassets/         # Image and color assets
-│   │   ├── AppIcon.appiconset/ # App icons
-│   │   ├── Assets/             # UI images and icons
-│   │   ├── Colors/             # Theme colors (light/dark)
-│   │   └── Icons/              # Various icon sets
-│   │
-│   ├── Libraries/TariLib/       # Core wallet library integration
-│   │   ├── Core/               # FFI wrappers and services
-│   │   │   ├── FFI/            # Rust FFI bindings
-│   │   │   ├── Services/       # High-level wallet services
-│   │   │   ├── Tor/            # Tor network integration
-│   │   │   └── Tari.swift      # Main wallet manager
-│   │   └── Wrappers/           # Utility wrappers
-│   │
-│   ├── Common/                  # Shared utilities and components
-│   │   ├── Extensions/         # Swift extensions
-│   │   ├── Managers/           # App-wide managers
-│   │   ├── Deep Links/         # Deep link handling
-│   │   ├── Theme/              # Theming system
-│   │   └── Pop-up/             # Popup presentation system
-│   │
-│   ├── Screens/                 # UI screens (MVVM pattern)
-│   │   ├── AppEntry/           # Splash and wallet creation
-│   │   ├── Home/               # Main wallet dashboard
-│   │   ├── Send/               # Transaction sending flow
-│   │   ├── Contact Book/       # Contact management
-│   │   ├── Settings/           # App settings
-│   │   └── Profile/            # User profile
-│   │
-│   ├── UIElements/             # Reusable UI components
-│   │   ├── Buttons/            # Custom button components
-│   │   ├── Labels/             # Specialized labels
-│   │   └── Navigation/         # Navigation components
-│   │
-│   └── Backup/                 # Backup services
-│       ├── Manager/            # Backup coordination
-│       ├── ICloud/             # iCloud backup
-│       └── Dropbox/            # Dropbox backup
-│
-├── UnitTests/                   # Test suite
-│   └── *.swift                 # Various test files
-│
-├── fastlane/                    # Deployment automation
-│   ├── Fastfile                # Deployment lanes
-│   └── Pluginfile              # Fastlane plugins
-│
-└── Configuration Files
-    ├── Podfile                 # CocoaPods dependencies
-    ├── .swiftlint.yml         # Code style rules
-    ├── env-example.json       # Environment template
-    └── update_dependencies.sh  # Setup script
+MobileWallet/
+├── Libraries/TariLib/    # Core wallet integration (FFI, services, Tor)
+├── Screens/             # UI screens following MVVM (Home, Send, Settings)
+├── UIElements/          # Reusable components (buttons, labels, navigation)
+├── SwiftUI/             # SwiftUI design system (buttons, typography, list items)
+├── Common/              # Shared utilities (extensions, managers, theme)
+├── Backup/              # Backup services (iCloud, Dropbox managers)
+├── Assets.xcassets/     # Images, colors, icons (light/dark themes)
+├── Colors.xcassets/     # SwiftUI design system colors
+├── AppDelegate.swift    # App lifecycle and initialization
+└── Info.plist          # App configuration
+
+UnitTests/               # Test suite for core functionality
+fastlane/               # Deployment automation
 ```
 
-### Architecture Overview
-
-#### High-Level Architecture
-
-The Tari Aurora wallet follows a modular, layered architecture:
-
-```
-┌─────────────────────────────────────────────────┐
-│                 UI Layer                         │
-│  (UIViewControllers, Views, UIElements)        │
-├─────────────────────────────────────────────────┤
-│              Business Logic                      │
-│  (Models, ViewModels, Managers)                │
-├─────────────────────────────────────────────────┤
-│              Service Layer                       │
-│  (TariLib Services, Network, Storage)          │
-├─────────────────────────────────────────────────┤
-│                Core Layer                        │
-│  (FFI Bindings, Tor, Cryptography)            │
-├─────────────────────────────────────────────────┤
-│              External Services                   │
-│  (iCloud, Dropbox, Firebase, Giphy)           │
-└─────────────────────────────────────────────────┘
-```
-
-#### Component Relationships
-
-1. **Tari Core Integration**
-   - `Tari.swift` acts as the central wallet manager singleton
-   - FFI wrappers in `Libraries/TariLib/Core/FFI/` bridge Swift to Rust
-   - Services layer provides high-level APIs for wallet operations
-
-2. **UI Architecture (MVVM)**
-   - Each screen has: Constructor → ViewController → View → Model
-   - Constructors handle dependency injection
-   - ViewModels use Combine for reactive data flow
-   - Views are purely presentational
-
-3. **Data Flow**
-   ```
-   User Action → ViewController → Model → Service → FFI → Rust Core
-                                    ↓
-   UI Update ← ViewController ← Model (via @Published)
-   ```
-
-#### Key Architectural Decisions
-
-1. **Privacy First**: All network traffic routes through Tor
-2. **Security**: Screenshot protection, secure storage, biometric auth
-3. **Reactive Programming**: Combine framework for data flow
-4. **Theme System**: Dynamic light/dark theme support
-5. **Modular Design**: Clear separation of concerns
-
-### Core Business Logic
-
-#### 1. Wallet Initialization Flow
-
-```swift
-// AppDelegate.swift → Tari.swift → WalletContainer.swift
-1. App launches
-2. Configure logging and crash reporting
-3. Initialize Tor connection
-4. Check for existing wallet
-5. If exists: authenticate user (biometrics)
-6. If not: show onboarding/creation flow
-7. Connect to base node
-8. Sync blockchain state
-```
-
-#### 2. Transaction Sending Flow
-
-The send transaction flow is multi-step:
-
-```
-AddRecipientViewController → AddAmountViewController → AddNoteViewController 
-→ ConfirmationViewController → SendingTariViewController
-```
-
-Key components:
-- **PaymentInfo**: Data model carrying transaction details
-- **WalletTransactionsManager**: Handles actual transaction broadcast
-- **TransactionFormatter**: Formats transaction for display
-
-#### 3. Contact Management System
-
-```
-ContactsManager (facade) → InternalContactsManager (storage)
-                      ↓
-                 TariContactsService (wallet integration)
-```
-
-Features:
-- Internal contacts stored in UserDefaults
-- Transaction history integration
-- Emoji ID support
-- Address poisoning protection
-
-#### 4. Backup and Recovery
-
-Three backup methods:
-1. **Seed Phrase**: 24-word mnemonic (BIP39)
-2. **iCloud**: Encrypted wallet backup
-3. **Dropbox**: Encrypted wallet backup
-
-Recovery flow:
-```
-RestoreWalletViewController → Choose method
-├── Seed words → SeedWordsWalletRecoveryManager
-├── iCloud → ICloudBackupService
-└── Dropbox → DropboxBackupService
-```
-
-#### 5. Mining Integration
-
-- Desktop companion app integration
-- Mining status monitoring
-- Reward tracking via UserManager API
-
-### Key Technical Patterns
-
-#### 1. Dependency Injection Pattern
-
-All screens use constructor-based DI:
-
-```swift
-enum ScreenConstructor {
-    static func buildScene(dependency: Model) -> UIViewController {
-        let model = ScreenModel(dependency: dependency)
-        let viewController = ScreenViewController(model: model)
-        return viewController
-    }
-}
-```
-
-#### 2. Reactive Programming (Combine)
-
-ViewModels expose @Published properties:
-
-```swift
-class ViewModel {
-    @Published var state: State = .initial
-    @Published var data: [Item] = []
-    
-    private var cancellables = Set<AnyCancellable>()
-}
-```
-
-#### 3. Protocol-Oriented Design
-
-Core protocols define contracts:
-- `WalletInteractable`: Wallet operations
-- `BackupServicable`: Backup services
-- `ThemeViewProtocol`: Theming support
-
-#### 4. Error Handling
-
-Standardized error types with localization:
-
-```swift
-protocol CoreError {
-    var code: Int { get }
-    var domain: String { get }
-}
-
-// Usage
-ErrorMessageManager.getMessageModel(for: error)
-```
-
-#### 5. Security Patterns
-
-- `SecureViewController`: Screenshot prevention
-- `SecureWrapperView`: Content protection
-- Keychain storage for sensitive data
-- Biometric authentication
-
-### Dependencies and Integrations
-
-#### Core Dependencies (Podfile)
-
-```ruby
-## Networking & Privacy
-pod 'Tor'                    # Onion routing
-
-## UI & Animation
-pod 'lottie-ios'            # Animations
-pod 'SwiftEntryKit'         # Popups
-
-## External Services
-pod 'Firebase/Messaging'     # Push notifications
-pod 'Sentry-Dynamic'        # Crash reporting
-pod 'Giphy'                 # GIF support
-pod 'SwiftyDropbox'         # Dropbox backup
-
-## Crypto & Utilities
-pod 'Base58Swift'           # Address encoding
-pod 'YatLib'                # Emoji addresses
-```
-
-#### External Service Integrations
-
-1. **Firebase Cloud Messaging**
-   - Push notifications for transactions
-   - Device token management
-   - Background notifications
-
-2. **Giphy SDK**
-   - Transaction note GIF attachments
-   - Search and preview functionality
-
-3. **Dropbox/iCloud**
-   - Encrypted wallet backups
-   - Automatic synchronization
-
-4. **Sentry**
-   - Crash reporting
-   - Performance monitoring
-   - Debug logging
-
-5. **Yat Integration**
-   - Emoji-based addresses
-   - Visual transaction confirmations
-
-### Database Schema
-
-The wallet uses a Rust-based SQLite database accessed via FFI:
-
-#### Key Tables (inferred from usage)
-
-1. **Transactions**
-   - Pending inbound/outbound
-   - Completed transactions
-   - Transaction metadata
-
-2. **Contacts**
-   - Address
-   - Alias
-   - Favorite status
-
-3. **UTXOs**
-   - Unspent outputs
-   - Amount and status
-
-4. **Key-Value Store**
-   - Network settings
-   - Configuration data
-
-#### Data Access Pattern
-
-```
-Swift Layer → FFI Functions → Rust Core → SQLite
-```
-
-All database operations go through FFI wrappers that handle:
-- Pointer management
-- Type conversion
-- Error propagation
-
-### API Structure
-
-#### Internal APIs (Services)
-
-1. **TariBalanceService**
-   ```swift
-   @Published var balance: WalletBalance
-   func fetchBalance() throws
-   ```
-
-2. **TariTransactionsService**
-   ```swift
-   func sendTransaction(address:amount:fee:message:)
-   func cancelTransaction(id:)
-   ```
-
-3. **TariContactsService**
-   ```swift
-   var allContacts: [Contact]
-   func upsert(contact:)
-   ```
-
-#### External APIs
-
-1. **Mining API** (airdrop.tari.com)
-   ```swift
-   struct UserDetails {
-       let rank: Rank
-       let avatarDetails: AvatarDetails
-   }
-   ```
-
-2. **Push Notification API**
-   ```swift
-   func registerDevice(token:signature:)
-   func sendPushNotification(to:message:)
-   ```
-
-#### Deep Link API
-
-Supports various tari:// URLs:
-- `tari://mainnet/transactions/send?address=...&amount=...`
-- `tari://mainnet/contacts?alias=...&address=...`
-- `tari://mainnet/base_nodes/add?name=...&peer=...`
-
-### Testing Approach
-
-#### Unit Tests
-
-Located in `UnitTests/` directory:
-
-- **Core Logic Tests**
-  - `AmountNumberFormatterTests`: Currency formatting
-  - `DeepLinkFormatterTests`: URL parsing
-  - `SeedWordsTests`: Mnemonic validation
-
-- **Network Tests**
-  - `NetworkManagerTests`: Network configuration
-  - `StringBaseNodeTests`: Address validation
-
-- **Utility Tests**
-  - `VersionValidatorTests`: Version comparison
-  - `YatCacheManagerTests`: File caching
-
-#### Testing Patterns
-
-1. **Mocking**: `TariNetwork+Mocks.swift` for network mocking
-2. **Dependency Injection**: Constructor-based for testability
-3. **Async Testing**: Using XCTest expectations
-
-#### Manual Testing Considerations
-
-- Device-specific testing (notch/non-notch)
-- Network condition testing (Tor connectivity)
-- Backup/restore flows
-- Deep link handling
-
-### Build and Deployment
-
-#### Environment Setup
-
-1. **Dependencies Installation**
-   ```bash
-   ./update_dependencies.sh [mainnet|nextnet]
-   ```
-   - Downloads FFI library
-   - Configures preprocessor macros
-   - Installs CocoaPods
-   - Sets up git hooks
-
-2. **Environment Configuration**
-   - Copy `env-example.json` to `env.json`
-   - Add API keys (Giphy, Sentry, Push Server)
-
-#### Build Configuration
-
-- **Debug**: Development builds with logging
-- **Release**: Production builds with optimizations
-- **Schemes**: MobileWallet, MobileWalletNotificationService
-
-#### Fastlane Deployment
-
-```ruby
-## Upload debug symbols to Sentry
-lane :dsym do
-  upload_symbols_to_sentry(
-    auth_token: ENV["SENTRY_AUTH_TOKEN"],
-    org_slug: "tari-labs",
-    project_slug: "wallet-ios"
-  )
-end
-```
-
-#### Security Considerations
-
-1. **Code Signing**
-   - Team ID required in env.json
-   - Automatic signing in Xcode
-
-2. **API Key Protection**
-   - Pre-commit hooks sanitize Info.plist
-   - Sensitive keys in env.json (git-ignored)
-
-3. **Network Security**
-   - All traffic through Tor
-   - Certificate pinning for critical APIs
-
-#### Release Process
-
-1. Feature development on feature branches
-2. Merge to `development` for testing
-3. Create `release/*` branch
-4. Test and fix issues
-5. Merge to `master` and tag
-6. Deploy via Fastlane/CI
-
----
-
-This documentation provides a comprehensive overview of the Tari Aurora iOS wallet architecture. The codebase demonstrates professional Swift development practices with strong emphasis on security, privacy, and user experience. The modular architecture and clear separation of concerns make it maintainable and extensible for future enhancements.
+### Architecture
+MVVM with reactive Combine framework. 4-layer structure: UI → Business Logic → Service → Core (FFI). Constructor-based dependency injection for all screens. All network traffic through Tor for privacy. Hybrid UI approach with UIKit screens and SwiftUI design system components.
+
+### Key Files
+- Entry: `AppDelegate.swift` (app initialization and Tor setup)
+- Core: `Libraries/TariLib/Core/Tari.swift` (main wallet singleton)
+- Config: `env.json` (API keys), `Info.plist` (app settings)
+- FFI: `Libraries/TariLib/Core/FFI/` (Swift-Rust bridge)
+- Services: `Libraries/TariLib/Core/Services/` (high-level wallet APIs)
+- SwiftUI: `SwiftUI/` (design system components and typography)
+
+### Conventions
+- Screen constructors: `ScreenConstructor.buildScene(dependency:)` pattern
+- ViewModels use `@Published` properties for reactive data
+- All ViewControllers extend base classes with theming
+- SwiftUI components follow design system patterns with Poppins typography
+- Error handling via `CoreError` protocol with localized messages
+- Security: `SecureViewController` prevents screenshots
+
+### Important Notes
+- **Setup**: Run `./update_dependencies.sh [mainnet|nextnet]` before building
+- **FFI Memory**: Pointer management critical - follow existing patterns
+- **Tor Required**: App fails without Tor connectivity
+- **Theme System**: Colors defined in Assets.xcassets and Colors.xcassets, components auto-adapt
+- **SwiftUI Integration**: New design system with reusable components and typography
+- **Backup Encryption**: All backups encrypted before cloud storage
+- **Deep Links**: Support `tari://` URLs for transactions and contacts
 
 ## Codebase Structure
 
@@ -493,10 +64,10 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `.swiftlint.yml` | SwiftLint configuration file defining code style rules and quality standards for the Tari wallet iOS codebase. Sets relaxed limits: line length (230/250), type body length (380/400), function body length (90/110), file length (675/1000). Disables rules: identifier_name, multiple_closures_with_trailing_closure, function_parameter_count, todo, opening_brace. Excludes: Pods directory, UnitTests, and specific files scheduled for refactor (SettingsViewController.swift, AddAmountViewController.swift, EmojiIdView.swift, AnimatedBalanceLabel.swift). Used by CI/CD and development tools for automated code quality enforcement. |
 | `Gemfile` | Ruby dependency specification for iOS build automation tools. Defines gems: fastlane (iOS app deployment automation), cocoapods (dependency management). Includes fastlane plugin loading mechanism for extended build capabilities. Used by CI/CD pipeline and local development for automating app store distribution, certificate management, and build processes. Required for project setup and deployment workflows. |
 | `LICENSE` | BSD 3-Clause License for the Tari Project wallet iOS application. Copyright 2019 The Tari Project. Permits redistribution and use in source and binary forms with modification under specific conditions: retain copyright notice, reproduce copyright notice in documentation, no endorsement without permission. Disclaims warranties and limits liability for damages. Standard open-source license allowing commercial and non-commercial use while protecting project contributors from legal liability. |
-| `Podfile` | CocoaPods dependency specification for MobileWallet iOS app targeting iOS 15.0+. Defines third-party framework dependencies including Tor (network proxy), lottie-ios (animations), Firebase (messaging), Sentry (error tracking), Giphy (GIF support), cryptographic libraries (Base58Swift), and YAT/TariCommon libraries. Includes post-install hooks to configure deployment targets and fix toolchain references for Xcode compatibility. |
-| `Podfile.lock` | [GENERATED] CocoaPods lockfile specifying exact versions of all dependencies and their transitive dependencies. Ensures reproducible builds by locking specific versions. Contains pod specifications for frameworks like SwiftEntryKit, GiphyUISDK, YatLib, DropboxSDK, Tor integration, and testing frameworks. Generated by 'pod install' command and should be committed to version control. Critical for dependency management and build consistency across different environments and team members. |
+| `Podfile` | CocoaPods dependency specification for MobileWallet iOS app targeting iOS 15.0+. Defines third-party framework dependencies including Tor (network proxy), lottie-ios (animations), Firebase (messaging), Sentry (error tracking - updated to 8.52.0), Giphy (GIF support), cryptographic libraries (Base58Swift), and YAT/TariCommon libraries. Includes post-install hooks to configure deployment targets and fix toolchain references for Xcode compatibility. |
+| `Podfile.lock` | [GENERATED] CocoaPods lockfile specifying exact versions of all dependencies and their transitive dependencies. Updated with Sentry 8.52.0 and CocoaPods 1.16.2. Ensures reproducible builds by locking specific versions. Contains pod specifications for frameworks like SwiftEntryKit, GiphyUISDK, YatLib, DropboxSDK, Tor integration, and testing frameworks. Generated by 'pod install' command and should be committed to version control. |
 | `README.md` | Project documentation for Aurora - a reference-design mobile wallet app for the Tari digital currency. Contains build instructions using Podfile dependencies, Swift style guide following GitHub standards, version management process, and git branching strategy. Describes nextnet/mainnet setup processes, third-party dependencies (Tor, Firebase, Giphy, etc.), and deployment workflow with develop/feature/release/master branch structure. |
-| `dependencies.env` | [CONFIDENTIAL] Environment configuration file containing dependency versions and build settings. Contains potentially sensitive configuration values for external dependencies and build parameters. Should not be directly accessed - refer to env-example.json for template structure. Used by build system and dependency management tools. |
+| `dependencies.env` | [CONFIDENTIAL] Environment configuration file containing dependency versions and build settings. Updated FFI_MAINNET_VERSION to 4.5.0. Contains potentially sensitive configuration values for external dependencies and build parameters. Should not be directly accessed - refer to env-example.json for template structure. Used by build system and dependency management tools. |
 | `env-example.json` | Environment configuration template defining required API keys and credentials for the Tari wallet app. Contains placeholders for pushServerApiKey (push notifications), sentryPublicDSN (error tracking), appleTeamID (code signing), and giphyApiKey (GIF integration). Developers copy this to env.json and populate with actual values. Used by build system to inject sensitive configuration without committing secrets to repository. |
 | `pre_commit.sh` | Git pre-commit hook script ensuring security compliance before code commits. Sanitizes Info.plist by removing sensitive Dropbox API keys from CFBundleURLSchemes configurations, preventing accidental exposure of credentials in version control. Automatically configured by update_dependencies.sh as part of development environment setup. Essential security measure for protecting API keys. |
 | `update_dependencies.sh` | Automated build environment setup script for iOS wallet development. Downloads platform-specific Tari FFI library (mainnet vs nextnet) from GitHub releases, configures Xcode preprocessor macros (MAINNET), installs CocoaPods dependencies, updates Info.plist with Dropbox API keys, and sets up git hooks. Reads dependencies.env for version management and env.json for API configuration. Handles network selection and ensures consistent development environment across team. |
@@ -517,8 +88,8 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `AppDelegate.swift` | Main application delegate for the Tari iOS wallet app. Handles app lifecycle events, initialization of core services, and deep link processing. Key responsibilities: configures Firebase for push notifications, initializes Giphy SDK for transaction GIFs, sets up background task management, configures audio session for media playback, handles tari:// URL scheme deep links through DeeplinkHandler, manages APNS device token registration, and prevents keyboard extension usage for security. Dependencies: Firebase (notifications), GiphyUISDK (GIFs), BackgroundTaskManager (tasks), ShortcutsManager (iOS shortcuts), NotificationManager (push handling), BackupManager (wallet backup), AppConfigurator (app setup), DeeplinkHandler (URL processing). Critical entry point that orchestrates app initialization and external integrations. |
-| `Info.plist` | iOS app configuration plist defining bundle information, permissions, and capabilities for the Tari wallet app. Registers custom URL schemes ('tari', 'dbapi-8-emm', 'dbapi-2'), Dropbox integration, iCloud container support, and background tasks. Declares privacy-sensitive permissions for camera (QR scanning), contacts, Face ID authentication, and photo library access. Includes complete Poppins and DrukWideTrial font declarations, background notification support, and scene delegate configuration. |
+| `AppDelegate.swift` | Main application delegate for the Tari iOS wallet app. Handles app lifecycle events, initialization of core services, and deep link processing. Key responsibilities: configures Firebase for push notifications, initializes Giphy SDK for transaction GIFs, sets up background task management, configures audio session for media playback, handles tari:// URL scheme deep links through DeeplinkHandler, manages APNS device token registration, and prevents keyboard extension usage for security. Dependencies: Firebase (notifications), GiphyUISDK (GIFs), BackgroundTaskManager (tasks), ShortcutsManager (iOS shortcuts), NotificationManager (push handling), BackupManager (wallet backup), AppConfigurator (app setup), DeeplinkHandler (URL processing), TariCommon framework. Includes TariView typealias for SwiftUI integration. Critical entry point that orchestrates app initialization and external integrations. |
+| `Info.plist` | iOS app configuration plist defining bundle information, permissions, and capabilities for the Tari wallet app. Registers custom URL schemes ('tari', 'dbapi-8-emm', 'dbapi-2'), Dropbox integration, iCloud container support, and background tasks. Declares privacy-sensitive permissions for camera (QR scanning), contacts, Face ID authentication, and photo library access. Includes streamlined Poppins font declarations (6 weights: Black, Bold, Light, Medium, Regular, SemiBold) with standardized naming convention, plus DrukWideTrial font, background notification support, and scene delegate configuration. |
 | `MobileWallet-bridging-header.h` | Objective-C bridging header exposing C/Objective-C APIs to Swift. Imports: libminotari_wallet_ffi_ios.xcframework headers for Rust FFI bindings, NetworkTools.h for low-level network utilities. Used by: Swift code requiring access to C FFI functions and Objective-C utilities. Essential for Tari wallet FFI integration and network interface detection. Enables Swift access to Rust wallet core functionality and system network APIs. |
 | `SceneDelegate.swift` | Scene delegate managing iOS 13+ scene lifecycle and app state transitions. Handles window setup with custom TariWindow, deep link processing from app launch/notification/shortcuts, Yat integration configuration, and biometric authentication flow. Key features: processes notification responses when app launches, handles deep links during app startup with retry logic for airdrop auth, manages home screen shortcuts, configures Yat SDK with organization settings, sets up theme coordinator, manages foreground/background transitions with authentication requirements, automatically shows LocalAuthViewController when app returns to foreground if wallet exists, clears badge count and cleans up logs on foreground entry. Dependencies: YatLib (human addresses), DeeplinkHandler (URL processing), ShortcutsManager (iOS shortcuts), ThemeCoordinator (theming), AppRouter (navigation), LocalAuthViewController (biometrics), BackupManager (iCloud integration), TariWindow (custom window), Tari wallet core. Critical for app state management and external integration handling. |
 | `Tari.entitlements` | iOS app entitlements defining security capabilities and service access. Enables push notifications (development environment), iCloud integration with CloudDocuments and CloudKit for backup synchronization, shared keychain access for secure credential storage across app group, and app groups for data sharing. Configures iCloud container 'iCloud.com.tari.wallet' for cross-device wallet synchronization and backup storage. Essential for security features, cloud backup functionality, and proper iOS system integration. Required for App Store distribution and production iCloud services. |
@@ -527,7 +98,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `project.pbxproj` | [GENERATED] Xcode project file containing build configuration, target definitions, file references, and build phases for MobileWallet iOS app. Defines main app target, notification service extension, test targets. Includes build settings for debug/release configurations, signing, deployment targets, framework linking, asset compilation. Contains file system organization mirroring source structure. Generated and maintained by Xcode IDE. Critical for app compilation, dependency management, and project structure. Includes CocoaPods integration, custom build phases, and platform-specific settings. |
+| `project.pbxproj` | [GENERATED] Xcode project file containing build configuration, target definitions, file references, and build phases for MobileWallet iOS app. Defines main app target, notification service extension, test targets. Includes build settings for debug/release configurations, signing, deployment targets, framework linking, asset compilation. Contains file system organization mirroring source structure. Generated and maintained by Xcode IDE. Critical for app compilation, dependency management, and project structure. Includes CocoaPods integration, custom build phases, platform-specific settings, SwiftUI design system components, transaction detail views, new color assets, font resources, and payment reference functionality. Updated for iOS 16.0 minimum deployment target and version 1.1.2. |
 
 #### MobileWallet.xcodeproj/project.xcworkspace/
 
@@ -2795,13 +2366,14 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `Publisher+Binding.swift` | Combine Publisher extensions for reactive binding utilities. Exports: assignPublisher(to:on:) method for weak reference binding, onChangePublisher() method for change detection. Functionality: Safe binding to object properties with automatic weak references, change event transformation for reactive chains. Dependencies: Combine framework. Used by: MVVM reactive bindings throughout app, view model to view connections, reactive UI updates. Pattern: Extension-based utilities for Combine reactive programming. |
 | `Result+Void.swift` | Swift Result type extension for Void success cases. Exports: static success property for Result<Void, Error> types. Functionality: Convenient creation of successful Void results, eliminates boilerplate for completion-only operations. Dependencies: Swift standard library Result type. Used by: Async operations with no return value, completion handlers, validation methods throughout the app. Pattern: Type extension for common result patterns. |
 | `String+Emoji.swift` | String and Character extensions for emoji detection and text similarity analysis. Exports: Character.isSimpleEmoji, Character.isCombinedIntoEmoji, Character.isEmoji, String.containsOnlyEmoji, String.isSimilar(to:minSameCharacters:usedPrefixSuffixCharacters:). Dependencies: Foundation. Used throughout the app for validating emoji-based wallet addresses and detecting similar text patterns for security validation. Critical for Tari's emoji ID system. |
+| `String+Hex.swift` | String extension providing hexadecimal conversion utilities for the Tari wallet app. Implements hex() method to convert Unicode scalars to uppercase hexadecimal representation, and initializer for converting C hex tuples to hexadecimal strings using unsafe pointer operations. Used for cryptographic data formatting, transaction identifiers, and low-level data representation in wallet operations. Part of common utilities supporting blockchain and cryptographic functionality. |
 | `String+Tools.swift` | String utility extensions for base node validation and text processing. Provides isBaseNodeAddress static method validating hex keys (64-character lowercase hex) and addresses (onion3 or IPv4 format) with iOS version-aware regex implementation. Includes splitElementsInBrackets method for parsing bracket-delimited content with iOS 16+ support. Essential for network configuration validation, ensuring proper base node addresses and peer string formatting. Used by connection services for validating user-entered node configurations and parsing network addresses. |
 | `String.swift` | String utility extensions for common text operations. Exports: String extensions with separator insertion, bridge config parsing, random string generation, tokenization, currency symbol formatting, height calculation. StringProtocol extensions for index distance calculations. Collection and String.Index extensions for distance operations. Array extensions for SubSequence handling. Used throughout app for text processing, UI formatting, and data parsing. Dependencies: UIKit for font calculations, Theme for currency symbols. |
-| `Task+Utils.swift` | Task extension providing convenient async sleep functionality with seconds instead of nanoseconds. Exports: Task.sleep(seconds:) static method for cleaner async delay code. Dependencies: Swift concurrency. Used throughout async operations for timing delays, animations, and rate limiting. Simplifies common async/await patterns in wallet operations. |
+| `Task+Utils.swift` | Task extension providing convenient async sleep functionality and delayed task execution. Exports: Task.sleep(seconds:) static method for cleaner async delay code, Task.init(after:operation:) convenience initializers for delayed execution on main actor or async contexts. Dependencies: Swift concurrency. Used throughout async operations for timing delays, animations, and rate limiting. Simplifies common async/await patterns in wallet operations with improved API using modern Swift concurrency features. |
 | `UIApplication+Utils.swift` | UIApplication extension providing app-wide utility methods for view controller management and navigation. Exports: firstWindow, menuTabBarController, topController properties, hideKeyboard() method, and private helper methods. Dependencies: UIKit, MenuTabBarController. Used for global navigation, keyboard dismissal, and finding specific view controllers throughout the app lifecycle. |
 | `UICollectionViewDiffableDataSource+Animation.swift` | UICollectionViewDiffableDataSource extension for improved animation handling. Exports: apply(delayedSnapshot:animatingDifferences:completion:) method. Functionality: Delayed snapshot application to fix self-sizing cell animation issues, prevents animation glitches during size estimation. Dependencies: UIKit, uses DispatchQueue for timing. Used by: Collection views with dynamic cell sizes, animated list updates throughout the app. Performance: Fixes visual glitches in collection view animations by delaying updates by 0.01 seconds. |
 | `UIColor+Utils.swift` | UIColor extension providing dynamic color variant generation based on text input. Exports: UIColor.colorVariant(text:) method that creates deterministic color variations using HSB color space manipulation. Dependencies: UIKit. Used for generating unique but consistent avatar colors and contact visual identifiers based on wallet addresses or contact names. Implements hash-based color generation with saturation and brightness adjustments. |
-| `UIFont+FontStyle.swift` | UIFont extension providing custom font family access. Exports: Poppins enum (Bold, Medium, Light, Black, SemiBold, Regular), DrukWideTrial enum (Bold). Functionality: Type-safe access to custom fonts with size specification, font factory methods for consistent typography. Dependencies: UIKit, Poppins and DrukWideTrial font files. Used by: UI typography throughout the app, theme system, consistent font styling. Pattern: Enum-based font factory with size specification methods. |
+| `UIFont+FontStyle.swift` | UIFont extension providing custom font family access with updated font naming convention. Exports: Poppins enum (Bold, Medium, Light, Black, SemiBold, Regular), DrukWideTrial enum (Bold). Functionality: Type-safe access to custom fonts with size specification, font factory methods for consistent typography using hyphenated font names (Poppins-Bold vs Poppins Bold). Dependencies: UIKit, Poppins and DrukWideTrial font files. Used by: UI typography throughout the app, theme system, consistent font styling. Pattern: Enum-based font factory with size specification methods. |
 | `UIImage+Utils.swift` | UIImage utility extensions for Core Image integration. Exports: makeCIImage() method. Functionality: Converts UIImage to CIImage with fallback handling, supports both CIImage and CGImage backing stores. Dependencies: UIKit, Core Image framework. Used by: Image processing operations, filter applications, QR code generation workflows. Pattern: Safe conversion utility with multiple backing store support. |
 | `UILabel.swift` | UILabel extension for text styling utilities. Exports: interlineSpacing(spacingValue:), letterSpacing(value:) methods. Functionality: Line spacing adjustment using NSMutableParagraphStyle, letter spacing (kerning) adjustment using NSAttributedString. Dependencies: UIKit Foundation. Used by: Text styling throughout the app, typography consistency, improved readability. Pattern: Extension methods for attributed text manipulation. |
 | `UINavigationController+Common.swift` | UINavigationController extension providing convenient navigation stack manipulation. Exports: remove(controller:) method for safely removing specific view controllers from the navigation stack. Dependencies: UIKit. Used for custom navigation flow management, modal dismissal, and navigation stack cleanup throughout the wallet's screen transitions. |
@@ -2830,20 +2402,20 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 |------|-------------|
 | `AmountNumberFormatter.swift` | Reactive number formatter specialized for Tari currency amount input and display. Exports: AmountNumberFormatter class with @Published properties (amount, amountValue), append(string:), removeLast() methods. Dependencies: Combine, MicroTari. Handles decimal input validation, max 6 fraction digits, grouping separators, and real-time formatting. Critical for all transaction amount input throughout the wallet. |
 | `AppVersionFormatter.swift` | Application version formatter utility. Exports: AppVersionFormatter enum with static version property. Functionality: Formats app version display string including network name, version number, and build number. Format: "NETWORKNAME vX.X.X (bXXX)". Dependencies: AppInfo for version data, NetworkManager for network context. Used by: Settings screen, about dialog, debug information display. Pattern: Static utility formatter for consistent version display. |
-| `TransactionFormatter.swift` | Transaction data formatter for UI display. Exports: TransactionFormatter class with Model struct. Functionality: Formats transactions for UI display including contact names, amounts, status, notes, GIFs. Features: Contact name resolution, transaction filtering, title component styling, amount formatting, coinbase transaction handling. Dependencies: ContactsManager, StylizedLabel, AmountBadge, TariAddress. Used by: Transaction lists, transaction history screens, transaction details. Pattern: Data formatter with async contact updates and filtering support. |
+| `TransactionFormatter.swift` | Transaction data formatter for UI display with updated contact matching and payment terminology. Exports: TransactionFormatter class with Model struct. Functionality: Formats transactions for UI display including contact names, amounts, status, notes, payment IDs. Features: Contact name resolution using TariAddressComponents equality, transaction filtering, title component styling with 'Paid' terminology, amount formatting, coinbase transaction handling, emoji address truncation fallback. Dependencies: ContactsManager, StylizedLabel, AmountBadge, TariAddress. Used by: Transaction lists, transaction history screens, transaction details. Pattern: Data formatter with async contact updates and filtering support. |
 
 ##### MobileWallet/Common/Managers/
 
 | File | Description |
 |------|-------------|
-| `AddressPoisoningManager.swift` | Security manager for detecting and preventing address poisoning attacks in cryptocurrency transactions. Analyzes wallet addresses to identify potentially malicious addresses that share similar character patterns with legitimate contacts. Key features: configurable similarity detection (3+ matching characters in prefix/suffix), contact database comparison, transaction history analysis for suspicious addresses. Exports: AddressPoisoningManager singleton, SimilarAddressData struct. Used by: transaction sending flows, address validation UI components. Dependencies: ContactsManager for address comparison, TariAddress for cryptographic operations. Critical security component protecting users from clipboard-based address poisoning scams common in cryptocurrency wallets. |
+| `AddressPoisoningManager.swift` | Security manager for detecting and preventing address poisoning attacks in cryptocurrency transactions with improved address comparison logic. Analyzes wallet addresses to identify potentially malicious addresses that share similar character patterns with legitimate contacts. Key features: configurable similarity detection (3+ matching characters in prefix/suffix), contact database comparison using TariAddressComponents equality instead of unique identifiers, transaction history analysis for suspicious addresses, Tari-only contact filtering. Exports: AddressPoisoningManager singleton, SimilarAddressData struct. Used by: transaction sending flows, address validation UI components. Dependencies: ContactsManager for address comparison, TariAddress for cryptographic operations. Critical security component protecting users from clipboard-based address poisoning scams common in cryptocurrency wallets. |
 | `AnimationHandler.swift` | Animation completion handler manager for Core Animation. Exports: AnimationHandler class with onCompletion callback, CAAnimation extension for completion handling. Functionality: Provides completion callbacks for CAAnimation objects, manages animation delegate lifecycle, extends CAAnimation with convenient onCompletion property. Dependencies: QuartzCore framework. Used by: UI animations throughout the app, view transitions, custom animation sequences. Pattern: Delegate pattern implementation for animation completion callbacks. |
 | `BugReportService.swift` | Bug reporting system integrating with Sentry for crash reporting and user feedback collection. Compresses recent log files (last 5) into ZIP attachments, creates temporary working directories for log processing, and submits bug reports with user details and log files to Sentry. Provides prepareLogsURL method for manual log export and automatic cleanup of temporary files. Essential for debugging and user support by collecting detailed crash information with relevant log context. Dependencies: Zip framework for compression, Sentry SDK for crash reporting, Tari.shared for log file access. |
 | `DataFlowManager.swift` | Centralized data coordination manager implementing app-wide data flow orchestration. Singleton pattern managing data synchronization, state coordination between services, and reactive data flow using Combine framework. Handles configuration and setup of data flow relationships between different app components. Maintains cancellables for subscription management and coordinates data consistency across wallet services. Used for centralizing data flow patterns and ensuring proper data synchronization throughout the application lifecycle. |
 | `ErrorMessageManager.swift` | Centralized error handling and localization manager that converts various error types into user-friendly MessageModel objects. Handles WalletError, FFIWalletHandler.GeneralError, SeedWords.InternalError, and ContactsManager.InternalError with specific localized messages. Provides fallback to generic error messages when specific translations are unavailable. Includes error signature appending for debugging support and maintains consistent error presentation across the app. |
 | `LocalNotificationsManager.swift` | Local push notification management system extending NSObject and handling UserNotifications framework integration. Manages notification categories (contactReceived, contactsReceived), custom actions, and notification scheduling for wallet events. Implements UNUserNotificationCenterDelegate for notification handling and user interaction processing. Handles transaction notifications, contact updates, and other wallet-related local alerts. Provides centralized notification coordination ensuring users receive timely updates about wallet activity and important events. |
 | `LogFilesManager.swift` | Log files cleanup manager for maintaining log storage. Exports: LogFilesManager enum with cleanupLogs() static method. Functionality: Automatic log file cleanup based on age and count limits, maintains minimum 5 files, removes files older than 7 days, sorted by modification date. Dependencies: Tari logging system, FileManager. Used by: App maintenance, log rotation system, storage management. Performance: Prevents unlimited log accumulation, maintains app storage footprint. |
-| `MigrationManager.swift` | Wallet database version validation and migration management system. Validates wallet database version against minimum required version for network compatibility, provides user dialog for outdated wallet deletion with retry logic for version fetching. Prevents app crashes from incompatible database schemas and ensures wallet compatibility with current network protocol. Integrates with NetworkManager for version requirements and Tari wallet for version checking. Essential for maintaining backward compatibility and preventing data corruption during app updates. Shows destructive confirmation dialog for wallet deletion when migration is required. |
+| `MigrationManager.swift` | Wallet database version validation and migration management system with improved async handling. Validates wallet database version against minimum required version for network compatibility, provides user dialog for outdated wallet deletion with retry logic for version fetching using modern Task.sleep API. Prevents app crashes from incompatible database schemas and ensures wallet compatibility with current network protocol. Integrates with NetworkManager for version requirements and Tari wallet for version checking. Essential for maintaining backward compatibility and preventing data corruption during app updates. Shows destructive confirmation dialog for wallet deletion when migration is required. |
 | `PendingDataManager.swift` | Manager for handling data that needs to be processed when wallet becomes available. Exports: PendingDataManager singleton class. Functionality: Stores contacts temporarily until wallet is running, automatically processes pending contacts when wallet becomes available, reactive wallet state monitoring. Dependencies: Combine for reactive updates, SwiftEntryKit, Tari wallet core. Used by: Contact import flows, wallet initialization sequences, data synchronization. Pattern: Singleton manager with reactive state monitoring. |
 | `SecurityManager.swift` | Singleton security manager controlling app-wide security settings using Combine framework. Manages screenshot prevention functionality through areScreenshotsDisabled published property, automatically syncing with GroupUserDefaults for persistence. Provides centralized security configuration with reactive updates across the app. Designed to expand with additional security features like screen recording protection, jailbreak detection, etc. |
 | `SeedWordsWalletRecoveryManager.swift` | Wallet recovery manager using seed phrase restoration. Exports: SeedWordsWalletRecoveryManager class with recovery methods. Functionality: Wallet recovery from seed phrases, custom base node configuration, wallet deletion, welcome overlay management, error handling for recovery failures. Key methods: recover(wallet:cipher:passphrase:), recover(wallet:seedWords:), deleteWallet(). Dependencies: Tari wallet core, SeedWords utility, UserDefaults. Used by: Wallet restore flows, seed phrase import screens. Security: Handles sensitive seed phrase data for wallet recovery. |
@@ -2851,7 +2423,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `StagedWalletSecurityManager.swift` | Staged wallet security manager implementing progressive security measures based on wallet balance thresholds. Exports: StagedWalletSecurityManager singleton with start(), stop() methods. Dependencies: Combine, UIKit, TariSettings, wallet balance publisher, AppRouter, PopUpPresenter. Used by: App lifecycle to monitor security stages. Implements 4-stage security: 1A (seed phrase verification), 1B (backup setup), 2 (backup password), 3 (cold storage recommendation). Shows timed security prompts with user education and navigation to appropriate settings. |
 | `TrackingConsentManager.swift` | Analytics tracking consent manager handling user privacy preferences for crash logging and telemetry. Exports: TrackingConsentManager enum with handleTrackingConsent() method. Dependencies: GroupUserDefaults, PopUpPresenter, AppConfigurator. Used by: App initialization to request tracking consent. Shows one-time consent dialog for crash reporting and analytics, updates system-wide tracking settings based on user choice. Manages privacy compliance for data collection. |
 | `VideoCaptureManager.swift` | QR code scanning manager using AVFoundation for camera capture. Handles video session setup and QR code detection. Exports: ScanResult enum, setupSession(), startSession(), stopSession(). Dependencies: AVFoundation, DeeplinkHandler. Used by: QR scanning screens. Supports Tari deep links, Tor bridges, and Base58 addresses. |
-| `WalletTransactionsManager.swift` | Core transaction management service handling Tari blockchain transaction execution. Exports: WalletTransactionsManager class with TransactionError enum, State enum, and performTransactionPublisher(address:amount:feePerGram:message:isOneSidedPayment:) method. Dependencies: Combine, TariLib, AppConnectionHandler, NotificationManager. Manages connection validation, transaction broadcasting, result monitoring, and recipient notifications. Central to all wallet send operations. |
+| `WalletTransactionsManager.swift` | Core transaction management service handling Tari blockchain transaction execution with updated payment ID handling. Exports: WalletTransactionsManager class with TransactionError enum, State enum, and performTransactionPublisher(address:amount:feePerGram:paymentID:isOneSidedPayment:) method. Dependencies: Combine, TariLib, AppConnectionHandler, NotificationManager. Manages connection validation, transaction broadcasting with separate payment ID parameter instead of message field, result monitoring, and recipient notifications. Central to all wallet send operations with improved parameter separation for payment identification. |
 
 ###### MobileWallet/Common/Managers/Connection Monitor/
 
@@ -2937,7 +2509,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `AddressPoisoningDataHandler.swift` | Address poisoning protection system preventing malicious address substitution attacks. Detects similar-looking addresses during transaction creation, shows disambiguation dialog when multiple similar addresses exist, manages trusted address whitelist via GroupUserDefaults. Integrates with AddressPoisoningManager for address similarity analysis and provides user confirmation flow for address selection. Critical security feature protecting users from address-based attacks where malicious actors create visually similar addresses to steal funds. Handles address trust management and popup presentations for user address verification. |
+| `AddressPoisoningDataHandler.swift` | Address poisoning protection system preventing malicious address substitution attacks with improved address comparison. Detects similar-looking addresses during transaction creation, shows disambiguation dialog when multiple similar addresses exist, manages trusted address whitelist via GroupUserDefaults. Integrates with AddressPoisoningManager for address similarity analysis and provides user confirmation flow for address selection using TariAddressComponents equality instead of unique identifier comparison. Critical security feature protecting users from address-based attacks where malicious actors create visually similar addresses to steal funds. Handles address trust management and popup presentations for user address verification. |
 | `ViewIdentifiable.swift` | Protocol and extensions providing type-safe cell registration and dequeuing for UITableView and UICollectionView. Automatically generates string identifiers from class names, eliminating hardcoded identifier strings and reducing runtime errors. Extends UITableViewCell, UICollectionViewCell, and UITableViewHeaderFooterView with convenient registration and dequeue methods. Essential utility for maintaining clean, type-safe collection view patterns throughout the app. |
 
 ##### MobileWallet/Common/Theme/
@@ -3012,9 +2584,9 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `FFIWalletHandler.swift` | Core FFI bridge handler providing direct interface to Rust wallet library through C FFI calls. Manages wallet lifecycle (connect/disconnect), publishes wallet running status, and wraps all wallet operations with comprehensive error handling. Key operations: wallet connection with CommsConfig and logging setup, balance and transaction queries (completed/pending/cancelled), contact management (add/remove/list), transaction operations (send/cancel/validate), UTXO management (list/split/join), fee estimation and network stats, base node configuration, wallet recovery, message signing, seed phrase access, key-value storage. All methods use standardized error handling with error code pointers and throw WalletError exceptions. Critical for safely bridging Swift UI layer to Rust blockchain core while maintaining type safety and proper memory management. Includes background task management for safe wallet disconnection during app backgrounding. Dependencies: Rust FFI functions, PointerHandler, WalletError, various wrapper types (Balance, Transactions, Contacts, etc.). |
-| `Tari.swift` | Core Tari wallet manager singleton orchestrating all wallet operations, Tor connectivity, and app lifecycle. Central coordinator managing wallet containers, Tor connection status, and automated connection/disconnection based on app state. Key responsibilities: maintains WalletContainer instances per network, manages Tor connectivity through TorManager with bootstrap progress tracking, handles secure passphrase generation and storage via keychain, provides wallet lifecycle management (start/stop/restore/delete), implements automatic reconnection on foreground entry, manages log file creation with timestamps, coordinates network switching between mainnet/testnet, provides published properties for UI binding (torConnectionStatus, torBootstrapProcess, torError). Dependencies: TorManager (network privacy), WalletContainer (wallet instances), AppKeychainWrapper (secure storage), NetworkManager (network selection), UIKit (app state). Exports: shared singleton instance, wallet access methods, connection management, error handling. Critical foundation class that all wallet operations depend on for Tor-routed blockchain connectivity and wallet management. |
-| `TorManager.swift` | Complete Tor network management for privacy-first cryptocurrency operations. Handles Tor daemon lifecycle (connect/disconnect actions), bridge configuration for censorship circumvention, IPv6 connectivity testing via IPtProxy, and connection status monitoring. Integrates with Tor library for onion routing and Combine framework for reactive state updates. Provides network anonymization layer ensuring all wallet communications are routed through Tor network. Supports custom bridge configuration, connection retry logic, and network status reporting. Dependencies: Tor, Combine, IPtProxy. Essential component for wallet privacy and network security. |
+| `FFIWalletHandler.swift` | Core FFI bridge handler providing direct interface to Rust wallet library through C FFI calls. Manages wallet lifecycle (connect/disconnect), publishes wallet running status, and wraps all wallet operations with comprehensive error handling. Key operations: wallet connection with CommsConfig and logging setup, balance and transaction queries (completed/pending/cancelled), contact management (add/remove/list), transaction operations (send/cancel/validate), UTXO management (list/split/join), fee estimation and network stats, base node configuration, wallet recovery with enhanced logging, message signing, seed phrase access, key-value storage, payment reference lookup. Enhanced transaction sending without message parameter, standardized error checking with helper method, and payment reference retrieval for transaction metadata. All methods use standardized error handling with error code pointers and throw WalletError exceptions. Critical for safely bridging Swift UI layer to Rust blockchain core while maintaining type safety and proper memory management. Includes background task management for safe wallet disconnection during app backgrounding. Dependencies: Rust FFI functions, PointerHandler, WalletError, various wrapper types (Balance, Transactions, Contacts, PaymentReference, etc.). |
+| `Tari.swift` | Core Tari wallet manager singleton orchestrating all wallet operations, Tor connectivity, and app lifecycle. Central coordinator managing wallet containers, Tor connection status, and automated connection/disconnection based on app state. Key responsibilities: maintains WalletContainer instances per network, manages Tor connectivity through TorManager with bootstrap progress tracking, handles secure passphrase generation and storage via keychain, provides wallet lifecycle management (start/stop/restore/delete), implements automatic reconnection on foreground entry, manages log file creation with timestamps, coordinates network switching between mainnet/testnet, provides published properties for UI binding (torConnectionStatus, torBootstrapProcess, torError). Enhanced with static mainWallet accessor for convenient access to main network wallet instance. Dependencies: TorManager (network privacy), WalletContainer (wallet instances), AppKeychainWrapper (secure storage), NetworkManager (network selection), UIKit (app state). Exports: shared singleton instance, mainWallet static accessor, wallet access methods, connection management, error handling. Critical foundation class that all wallet operations depend on for Tor-routed blockchain connectivity and wallet management. |
+| `TorManager.swift` | Complete Tor network management for privacy-first cryptocurrency operations. Handles Tor daemon lifecycle (connect/disconnect actions), bridge configuration for censorship circumvention, IPv6 connectivity testing via IPtProxy, and connection status monitoring. Integrates with Tor library for onion routing and Combine framework for reactive state updates. Enhanced with improved async/await sleep handling for better thread management. Provides network anonymization layer ensuring all wallet communications are routed through Tor network. Supports custom bridge configuration, connection retry logic, and network status reporting. Dependencies: Tor, Combine, IPtProxy. Essential component for wallet privacy and network security with optimized connection handling. |
 
 ###### MobileWallet/Libraries/TariLib/Core/App Setup/
 
@@ -3034,7 +2606,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | File | Description |
 |------|-------------|
 | `Balance.swift` | FFI wrapper for wallet balance operations from Rust core. Exports: Balance class with available, incoming, outgoing, timelocked properties. Dependencies: Rust FFI functions (balance_get_*). Used by: wallet balance display throughout app. Manages opaque pointer to Rust balance object with automatic cleanup. |
-| `ByteVector.swift` | Low-level byte array wrapper providing safe access to binary data through FFI interface. Handles raw byte operations for cryptographic data, addresses, and binary content. Key features: (1) FFI pointer-based byte vector management with automatic cleanup (2) Data constructor converting Swift Data to FFI byte vector with error handling (3) Individual byte access by index with bounds checking and error propagation (4) Count property providing vector length with error handling (5) Hex string conversion for debugging and display purposes (6) Byte array extraction for Swift interoperability (7) Data property for seamless Swift Data integration. Conversions: Supports hex string output, byte array access, and Data conversion. Dependencies: Foundation Data, PointerHandler, WalletError. Used by: Address operations, cryptographic key handling, transaction data, Tor cookie management. Extensions: Convenient hex, bytes, and data properties for various data format needs. Critical for: All binary data operations, cryptographic operations, and data format conversions throughout the Tari library. |
+| `ByteVector.swift` | Low-level byte array wrapper providing safe access to binary data through FFI interface. Handles raw byte operations for cryptographic data, addresses, and binary content. Key features: (1) FFI pointer-based byte vector management with automatic cleanup (2) Data constructor converting Swift Data to FFI byte vector with error handling (3) Individual byte access by index with bounds checking and error propagation (4) Count property providing vector length with error handling (5) Uppercase hex string conversion for debugging and display purposes (6) Byte array extraction for Swift interoperability (7) Data property for seamless Swift Data integration. Conversions: Supports uppercase hex string output, byte array access, and Data conversion. Dependencies: Foundation Data, PointerHandler, WalletError. Used by: Address operations, cryptographic key handling, transaction data, Tor cookie management. Extensions: Convenient hex, bytes, and data properties for various data format needs. Critical for: All binary data operations, cryptographic operations, and data format conversions throughout the Tari library. |
 | `RestoreWalletStatus.swift` | Enumeration representing different states of wallet restoration process from seed phrase. **Key exports:** RestoreWalletStatus enum with cases for connection, progress, completion, and failure states. **Dependencies:** None (native Swift). **Features:** Status code mapping from FFI, progress tracking with UTXO counts, retry attempt tracking, custom equality comparison. **Usage:** Used during wallet recovery flow to provide real-time feedback to users about restoration progress, connection status, and error handling. |
 | `TariEmojis.swift` | FFI wrapper for emoji address encoding/decoding functionality from Rust core. Manages emoji set collection with automatic memory cleanup, provides access to individual emojis by index, and offers convenient all property for complete emoji list retrieval. Used for converting Tari addresses to/from human-readable emoji format, essential for user-friendly address display and QR code generation. |
 | `TariFeePerGramStats.swift` | FFI wrapper for transaction fee statistics and estimation from network analysis. **Key exports:** TariFeePerGramStats class with fee calculation methods (min, avg, max fee per gram). **Dependencies:** Core FFI functions (fee_per_gram_stats_*), WalletError. **Features:** Statistical fee analysis, indexed access to fee data, order-based fee tiers, automatic memory management. **Usage:** Used in transaction creation flow to provide users with fee estimation options (slow, normal, fast) based on current network conditions. |
@@ -3078,8 +2650,8 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 |------|-------------|
 | `PublicKey.swift` | Cryptographic public key wrapper providing secure key operations through FFI interface. Handles public key data access, creation, and validation for wallet operations. Key features: (1) ByteVector property for raw key data access with error handling (2) Emoji encoding for user-friendly key representation and display (3) Hex string initialization for key creation from string data (4) Pointer-based initialization for FFI integration (5) Equatable implementation for key comparison operations (6) Automatic memory management with proper FFI cleanup. Key operations: Creation from hex strings, byte vector access, emoji encoding for display. Dependencies: ByteVector, PointerHandler, WalletError. Used by: TariAddress components (view key, spend key), cryptographic operations, key validation. Equality: Compares keys using hex representation of byte vectors. Security: Handles cryptographic material with proper error propagation and memory management. Critical for: Address validation, cryptographic operations, transaction verification, and key management throughout the wallet system. |
 | `PublicKeys.swift` | FFI wrapper for managing collections of cryptographic public keys from Rust core. **Key exports:** PublicKeys class with count property, publicKey(index:) method, and all computed property. **Dependencies:** Core FFI functions (public_keys_get_length, public_keys_get_at), PublicKey, WalletError. **Features:** Safe iteration over public key collections, indexed access with bounds checking, automatic memory management, error handling for all operations. **Usage:** Used in transaction validation, contact management, and cryptographic operations requiring multiple public keys. |
-| `TariAddress.swift` | Tari blockchain address representation with comprehensive FFI integration. Provides complete address functionality including creation, validation, and component extraction. Key features: (1) Multiple initialization methods (base58, emoji ID, raw pointer) with error handling (2) Address component access (network, features, view key, spend key, checksum) (3) Emoji ID representation for user-friendly address display (4) Network and feature flag decoding with bitmask operations (5) Address validation and format conversion utilities (6) TariAddressComponents integration for structured address data. Supports: One-sided, interactive, and payment ID features. Dependencies: ByteVector, PublicKey, TariAddressComponents. Used by: Contact management, transaction creation, address validation throughout app. Extensions: Deprecated publicKey getter, utility makeTariAddress function, network name resolution, feature flag checking. Critical for: All address handling, transaction routing, and contact management operations. |
-| `TariAddressComponents.swift` | Data structure for decomposed Tari address components with emoji and Base58 representations. **Key exports:** TariAddressComponents struct with network, features, keys, checksums and various address type flags. **Dependencies:** Base58Swift, TariAddress, emoji conversion extensions. **Features:** Network and feature extraction, Base58 encoding, emoji representation, address type detection (oneSided, interactive, paymentID), formatted display properties. **Usage:** Used for address validation, display formatting, QR code generation, and transaction recipient analysis throughout the app. |
+| `TariAddress.swift` | Tari blockchain address representation with comprehensive FFI integration. Provides complete address functionality including creation, validation, and component extraction. Key features: (1) Multiple initialization methods (base58, emoji ID, raw pointer) with error handling (2) Address component access (network, features, view key, spend key, checksum) (3) Emoji ID representation for user-friendly address display (4) Network and feature flag decoding with bitmask operations including payment ID support (5) Address validation and format conversion utilities (6) TariAddressComponents integration for structured address data. Supports: One-sided, interactive, and payment ID features with feature detection methods. Dependencies: ByteVector, PublicKey, TariAddressComponents. Used by: Contact management, transaction creation, address validation throughout app. Extensions: Deprecated publicKey getter, utility makeTariAddress function, network name resolution, comprehensive feature flag checking (oneSided, interactive, paymentId). Critical for: All address handling, transaction routing, and contact management operations. |
+| `TariAddressComponents.swift` | Data structure for decomposed Tari address components with emoji and Base58 representations. **Key exports:** TariAddressComponents struct with network, features, keys, checksums and various address type flags including payment ID support. **Dependencies:** Base58Swift, TariAddress, emoji conversion extensions. **Features:** Network and feature extraction, Base58 encoding, emoji representation, address type detection (oneSided, interactive, paymentID), formatted display properties, equality comparison supporting payment ID addresses. **Usage:** Used for address validation, display formatting, QR code generation, and transaction recipient analysis throughout the app. **Equality:** Custom equality implementation that compares full raw addresses for payment ID addresses, otherwise uses unique identifier. |
 
 ###### MobileWallet/Libraries/TariLib/Core/FFI/Seed Words/
 
@@ -3092,14 +2664,16 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `Transaction.swift` | Transaction protocol and status enumeration defining the core transaction interface and lifecycle states. Provides unified transaction handling across different transaction types. Key components: (1) TransactionStatus enum with 16 states covering pending, completed, broadcast, mined, coinbase, and error states (2) Transaction protocol defining common interface (identifier, amount, direction, status, message, timestamp, address, cancellation state) (3) Protocol extensions for transaction type checking (one-sided payments, coinbase transactions) (4) Timestamp formatting utilities for relative date display (5) Array extensions for duplicate filtering by transaction identifier. Transaction states: Tracks complete lifecycle from pending through broadcast, mining, and confirmation. Dependencies: TariAddress, Date extensions. Used by: All transaction-related services, UI components, and transaction history management. Extensions: Provides computed properties for transaction classification and display formatting. Critical for: Transaction categorization, status tracking, and unified transaction handling across the app. |
+| `PaymentReference.swift` | Payment reference wrapper for transaction payment record data through FFI interface. Provides access to payment reference information including reference string, transaction direction, and block height. Key features: (1) Payment reference string extraction from C hex tuple (2) Direction detection (inbound/outbound) based on FFI direction flag (3) Block height access for transaction confirmation tracking (4) Automatic memory management with FFI pointer cleanup. Dependencies: FFI payment record functions, String hex tuple conversion. Used by: Transaction payment reference lookup, payment tracking, transaction metadata display. Critical for: Payment reference display and transaction payment information throughout the wallet. |
+| `PaymentReferences.swift` | Payment references collection wrapper managing multiple payment reference records through FFI interface. Provides indexed access to payment reference data with automatic memory management. Key features: (1) Collection count access with error handling (2) Indexed payment reference retrieval with bounds checking (3) PaymentReference wrapper creation for individual records (4) Automatic FFI pointer cleanup and memory management. Dependencies: PaymentReference, FFI payment records functions, PointerHandler, WalletError. Used by: Transaction payment reference lookup, payment history access, transaction metadata services. Critical for: Managing collections of payment references and transaction payment data throughout the wallet. |
+| `Transaction.swift` | Transaction protocol and status enumeration defining the core transaction interface and lifecycle states. Provides unified transaction handling across different transaction types with enhanced payment ID support. Key components: (1) TransactionStatus enum with 16 states covering pending, completed, broadcast, mined, coinbase, and error states (2) Transaction protocol defining common interface (identifier, amount, direction, status, paymentId, timestamp, address, cancellation state, pointer access) (3) Protocol extensions for transaction type checking (one-sided payments, coinbase transactions) (4) Timestamp formatting utilities for relative date display (5) Array extensions for duplicate filtering by transaction identifier (6) Enhanced paymentId method supporting multiple FFI extraction strategies. Transaction states: Tracks complete lifecycle from pending through broadcast, mining, and confirmation. Dependencies: TariAddress, Date extensions, ByteVector. Used by: All transaction-related services, UI components, and transaction history management. Extensions: Provides computed properties for transaction classification, display formatting, and comprehensive payment ID extraction. Critical for: Transaction categorization, status tracking, and unified transaction handling across the app. |
 | `TransactionSendResult.swift` | FFI wrapper for transaction sending operation results with detailed status information. **Key exports:** TransactionSendResult class with Status enum (queued, directSend, safSend variants) and success checking methods. **Dependencies:** Core FFI functions (transaction_send_status_*), WalletError. **Features:** Transaction send status decoding, success determination logic, automatic memory management, detailed send method tracking. **Usage:** Used in send transaction flow to provide users with immediate feedback on transaction submission success and delivery method. |
 
 ###### MobileWallet/Libraries/TariLib/Core/FFI/Transactions/Completed/
 
 | File | Description |
 |------|-------------|
-| `CompletedTransaction.swift` | Completed transaction wrapper implementing Transaction protocol for finalized blockchain transactions. Represents fully processed transactions with comprehensive status and metadata access. Key features: (1) RejectionReason enum handling 8 cancellation states (timeout, double spend, orphan, invalid, etc.) (2) Transaction protocol implementation with identifier, amount, fee, message, timestamp access (3) Confirmation count tracking for transaction security verification (4) Source and destination address extraction for transaction routing (5) Transaction kernel access for cryptographic proof verification (6) Mining block height for blockchain confirmation tracking (7) Directional address property based on transaction direction. Status handling: Maps to TransactionStatus enum with comprehensive error checking. Dependencies: TariAddress, CompletedTransactionKernel, ByteVector for message decoding. Used by: Transaction history, balance calculations, transaction status displays. Lifecycle: Represents final state of successful transactions with complete metadata. Critical for: Transaction confirmation, balance updates, and user transaction history throughout the application. |
+| `CompletedTransaction.swift` | Completed transaction wrapper implementing Transaction protocol for finalized blockchain transactions. Represents fully processed transactions with comprehensive status and metadata access. Key features: (1) RejectionReason enum handling 8 cancellation states (timeout, double spend, orphan, invalid, etc.) (2) Transaction protocol implementation with identifier, amount, fee, paymentId, timestamp access (3) Confirmation count tracking for transaction security verification (4) Source and destination address extraction for transaction routing (5) Transaction kernel access for cryptographic proof verification (6) Mining block height for blockchain confirmation tracking (7) Directional address property based on transaction direction (8) Enhanced payment ID extraction supporting multiple FFI methods. Status handling: Maps to TransactionStatus enum with comprehensive error checking. Dependencies: TariAddress, CompletedTransactionKernel, ByteVector for message decoding. Used by: Transaction history, balance calculations, transaction status displays. Lifecycle: Represents final state of successful transactions with complete metadata. Critical for: Transaction confirmation, balance updates, and user transaction history throughout the application. |
 | `CompletedTransactionKernel.swift` | FFI wrapper for accessing cryptographic kernel data of completed transactions. **Key exports:** CompletedTransactionKernel class with excessHex, excessPublicNonceHex, excessSignatureHex properties. **Dependencies:** Core FFI functions (transaction_kernel_*), WalletError. **Features:** Hexadecimal cryptographic data access, automatic memory management, error handling for all kernel operations. **Usage:** Used for transaction verification, audit trails, and cryptographic proof validation in completed transactions. |
 | `CompletedTransactions.swift` | FFI wrapper for managing collections of completed transactions from Rust core. **Key exports:** CompletedTransactions class with count property and transaction(at:isCancelled:) method. **Dependencies:** Core FFI functions (completed_transactions_*), CompletedTransaction, WalletError. **Features:** Safe indexed access to completed transactions, cancellation status tracking, automatic memory management. **Usage:** Core component for transaction history display, providing access to all completed transactions for history screens and reporting. |
 
@@ -3131,12 +2705,12 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `CoreTariService.swift` | Base service class for all Tari blockchain services providing shared infrastructure. Defines MainServiceable protocol interface for core wallet services (connection, validation, balance). Maintains unowned references to FFIWalletHandler, WalletCallbacks, and MainServiceable to prevent retain cycles. Abstract base class establishing common patterns for TariBalanceService, TariTransactionsService, TariContactsService, and other blockchain services. Essential architectural component ensuring consistent service design and resource management across the Tari integration layer. |
 | `TariBalanceService.swift` | Reactive service managing wallet balance state and real-time updates. Extends CoreTariService with @Published properties for balance tracking (WalletBalance) and FFI balance coordination. Implements Combine framework for reactive UI updates and maintains cancellables set for subscription management. Provides interface between wallet balance queries and UI layer, handling available, pending, and locked fund calculations. Used by home screen, transaction flows, and balance-dependent UI components for real-time wallet state reflection. |
 | `TariConnectionService.swift` | Network connectivity and base node management service extending CoreTariService. Handles base node selection, peer connections, and network validation with InternalError enum for invalid peer string scenarios. Coordinates with validation service for connection verification and manages blockchain node connectivity. Provides interface for selecting base nodes, managing peer connections, and monitoring network health. Critical for wallet's blockchain connectivity and ensuring reliable network communication for transaction broadcasting and blockchain synchronization. |
-| `TariContactsService.swift` | Address book management service extending CoreTariService for contact operations. Provides interface for wallet contact management including allContacts property access and upsert operations for contact creation/updates. Handles contact persistence, retrieval, and synchronization with underlying wallet contact storage. Interfaces with wallet manager for contact operations and maintains contact consistency. Used by contact book screens, transaction recipient selection, and address management features for comprehensive contact management throughout the wallet. |
+| `TariContactsService.swift` | Address book management service extending CoreTariService for contact operations. Provides interface for wallet contact management including allContacts property access and upsert operations for contact creation/updates. Enhanced contact lookup using TariAddressComponents equality comparison supporting payment ID addresses. Handles contact persistence, retrieval, and synchronization with underlying wallet contact storage. Interfaces with wallet manager for contact operations and maintains contact consistency. Used by contact book screens, transaction recipient selection, and address management features for comprehensive contact management throughout the wallet. |
 | `TariFeesService.swift` | Transaction fee calculation and network statistics service. Extends CoreTariService providing fee estimation with customizable parameters: amount, feePerGram (defaults to TariConstants.defaultFeePerGram), kernelsCount, and outputsCount. Includes feePerGramStats functionality for network fee analysis. Bridges wallet manager fee calculation capabilities to UI layer, enabling accurate transaction cost estimation and network fee monitoring for optimal transaction pricing. |
 | `TariKeyValueService.swift` | Simple key-value storage service for wallet configuration and settings persistence. Provides strongly-typed key access via Key enum (currently supporting network configuration) with get/set/clear operations through FFI wallet storage. Enables persistent storage of wallet-specific configuration data with atomic operations and error handling. Used for storing network settings and other wallet configuration that persists across app launches. Minimal but essential service for wallet state persistence and configuration management through the underlying Tari wallet database. |
 | `TariMessageSignService.swift` | Cryptographic message signing service for digital signature operations using wallet private keys. Provides message signing functionality returning MessageMetadata with hex signature and nonce components. Implements signature parsing and validation with error handling for malformed signature strings. Essential for secure communication protocols, authentication tokens, and push notification verification. Used by NotificationManager for cryptographically signed push notifications and other services requiring message authentication. Critical security service ensuring message integrity and authenticity in wallet communications. Dependencies: FFIWalletHandler for signing operations, MessageMetadata for result structure. |
 | `TariRecoveryService.swift` | Wallet recovery and seed word management service providing wallet restoration capabilities. Manages recovery status updates via @Published properties for UI feedback during wallet restoration process. Provides access to wallet seed words for backup purposes and implements recovery initiation with recovery output messages. Supports multilingual seed word lists for internationalized wallet recovery and mnemonic validation. Essential for wallet backup and recovery functionality including seed phrase backup and wallet restoration from existing seed phrases. Integrates with WalletCallbacks for recovery status updates and FFIWalletHandler for recovery operations. |
-| `TariTransactionsService.swift` | Comprehensive transaction lifecycle management service extending CoreTariService. Handles transaction creation, sending, receiving, monitoring, and status tracking with InternalError enum for insufficient funds scenarios. Implements Combine framework for reactive transaction state updates and real-time status monitoring. Manages pending inbound/outbound transactions, completed transactions, and transaction validation. Provides interface for sending payments, monitoring transaction progress, and coordinating with wallet balance updates. Dependencies: Combine. Central service for all wallet transaction operations and state management. |
+| `TariTransactionsService.swift` | Comprehensive transaction lifecycle management service extending CoreTariService. Handles transaction creation, sending, receiving, monitoring, and status tracking with InternalError enum for insufficient funds scenarios. Implements Combine framework for reactive transaction state updates and real-time status monitoring with main actor updates. Manages pending inbound/outbound transactions, completed transactions, and transaction validation. Enhanced transaction sending without message parameter and payment reference lookup functionality. Provides interface for sending payments, monitoring transaction progress, coordinating with wallet balance updates, and retrieving payment references for transaction metadata. Dependencies: Combine, PaymentReference. Central service for all wallet transaction operations, state management, and payment reference tracking. |
 | `TariUTXOsService.swift` | Unspent Transaction Output (UTXO) management service for advanced wallet operations. Provides access to all wallet UTXOs and implements coin control features: coin splitting for privacy and coin joining for consolidation. Offers preview functionality for fee estimation before executing coin operations with configurable fee-per-gram rates. Essential for advanced users managing UTXO sets for privacy optimization and wallet maintenance. Integrates with FFIWalletHandler for UTXO operations and uses TariConstants for default fee parameters. Used by advanced settings and UTXO management interfaces. |
 | `TariUnspentOutputsService.swift` | UTXO management service providing access to unspent transaction outputs. Inherits from CoreTariService and wraps wallet manager UTXO operations. Exports: unspentOutputs() for retrieving UnblindedOutputs, store() for importing external UTXOs. Dependencies: CoreTariService base class, WalletManager FFI wrapper. Used by: UTXO management screens and transaction sending logic. Handles both getting existing UTXOs and storing imported ones with source address and message metadata. |
 | `TariValidationService.swift` | Blockchain synchronization and transaction validation service managing wallet sync status. Tracks transaction output (TXO) and transaction (TX) validation progress with reactive status updates (idle, syncing, synced, failed). Coordinates dual validation processes ensuring transaction and output integrity against blockchain. Provides reset functionality for resync operations and handles validation callbacks for status tracking. Essential for wallet synchronization UI feedback and ensuring transaction data consistency. Used by sync indicators and wallet state management for user feedback during blockchain synchronization. |
@@ -3195,7 +2769,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `BaseNode.swift` | Tari base node configuration data model for network connectivity. Exports: BaseNode struct conforming to Equatable, Codable with properties: name, hex identifier, optional address. Methods: isCustomBaseNode computed property, peer identifier, makePublicKey(). Dependencies: PublicKey FFI wrapper. Used by: Network settings, base node selection screens, wallet initialization. Represents both default and custom base nodes with peer identification, public key generation, and network connectivity configuration. Essential for wallet-to-network communication setup. |
 | `NetworkManager.swift` | Network configuration manager handling blockchain network selection and base node connectivity. Provides singleton access to network state, base node management, and network-specific settings. Features: (1) TariNetwork selection with mainnet default (2) Default and custom base node management (3) Block height tracking for sync status (4) NetworkSettings persistence via GroupUserDefaults (5) Random base node selection for failover (6) Currency symbol access for display. Dependencies: TariNetwork, BaseNode, NetworkSettings, Combine. Used by: Wallet initialization, connectivity management. Critical for: Network operations and blockchain synchronization. |
 | `NetworkSettings.swift` | Network configuration container for custom base nodes and blockchain state. Exports: NetworkSettings struct conforming to Codable, Equatable with properties: name, customBaseNodes array, blockHeight. Methods: update() for customBaseNodes and blockHeight. Used by: Network management, settings persistence, blockchain synchronization. Provides immutable update pattern for network configuration changes while maintaining type safety and data consistency. |
-| `TariNetwork.swift` | Tari blockchain network configuration definitions and utilities. Exports: TariNetwork struct with properties for name, presentedName, tickerSymbol, isRecommended, dnsPeer, blockExplorerURL, currencySymbol, version info. Static networks: mainnet (XTM), nextnet (tXTM), esmeralda (tXTM). Methods: fullPresentedName, blockExplorerKernelURL() for transaction lookup. Used by: Network selection screens, wallet initialization, blockchain connectivity. Centralizes network-specific configuration including DNS peers, block explorers, currency symbols, and version compatibility requirements. |
+| `TariNetwork.swift` | Tari blockchain network configuration definitions and utilities. Exports: TariNetwork struct with properties for name, presentedName, tickerSymbol, isRecommended, dnsPeer, blockExplorerURL, currencySymbol, version info. Static networks: mainnet (XTM), nextnet (tXTM), esmeralda (tXTM). Methods: fullPresentedName, blockExplorerKernelURL() for transaction lookup. Updated mainnet version to 4.5.0 for FFI compatibility. Used by: Network selection screens, wallet initialization, blockchain connectivity. Centralizes network-specific configuration including DNS peers, block explorers, currency symbols, and version compatibility requirements. |
 
 ###### MobileWallet/Libraries/TariLib/Wrappers/Utils/Settings/
 
@@ -3283,7 +2857,7 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `LocalAuthViewController.swift` | Dedicated local authentication controller for wallet security verification. Presents over existing content with full-screen modal for biometric (Face ID/Touch ID) or passcode authentication. Provides authentication success/failure callbacks for app resume scenarios and manual authentication triggers. Skips authentication on simulator for development convenience. Essential security component ensuring wallet access protection when app returns from background. Used by SceneDelegate and other security-sensitive areas requiring user verification. Dependencies: LAContext for biometric authentication, SplashView for UI consistency. |
 | `SplashView.swift` | Main splash screen UI with wallet creation/import interface. Exports: SplashView class extending DynamicThemeView with subviews: iconView, staticSplashView, titleLabel, importWallet/createWallet buttons, disclaimerTextView. Dependencies: Lottie, TariCommon, UIKit, Typography. Used by: SplashViewController for app entry screen. Features animated layout transitions, theme-aware styling, version display, legal disclaimer with clickable privacy/user agreement links, and button callbacks for wallet creation/import flows. Includes commented Lottie animation support. |
 | `SplashViewConstructor.swift` | Dependency injection constructor for splash screen using MVVM pattern. Exports: SplashViewConstructor enum with buildScene() static method accepting isWalletConnected, paperWalletRecoveryData, recoveryMode parameters. Dependencies: SplashViewController, SplashViewModel, PaperWalletRecoveryData. Used by: App navigation flow for initial splash screen setup. Implements constructor pattern for clean dependency injection and testable component creation with support for wallet recovery scenarios. |
-| `SplashViewController.swift` | Primary application entry screen managing wallet initialization and authentication flows. Orchestrates transitions between wallet creation, restoration, and existing wallet authentication. Implements reactive UI with Combine framework for status updates, network selection, and error handling. Handles biometric authentication via LocalAuthentication framework with fallback continue button on authentication failure. Manages wallet recovery progress display and coordinates with SplashViewModel for wallet operations. Central coordinator for app entry determining user path based on wallet existence and configuration state. |
+| `SplashViewController.swift` | Primary application entry screen managing wallet initialization and authentication flows. Orchestrates transitions between wallet creation, restoration, and existing wallet authentication. Implements reactive UI with Combine framework for status updates, network selection, and error handling. Enhanced authentication flow with conditional button visibility - initially hides wallet creation/import buttons, shows them only for new users or provides continue option for existing users with authentication failure. Handles biometric authentication via LocalAuthentication framework with improved state management. Manages wallet recovery progress display and coordinates with SplashViewModel for wallet operations. Central coordinator for app entry determining user path based on wallet existence and configuration state with improved UX flow. |
 | `SplashViewModel.swift` | Splash screen MVVM business logic handling wallet creation, recovery, and connection flows. Exports: SplashViewModel class with PaperWalletRecoveryData struct, Status/RecoveryMode enums, @Published properties for status, networkName, appVersion, isWalletExist, errorMessage. Dependencies: Combine, SeedWordsWalletRecoveryManager, NetworkManager, Tari wallet FFI. Used by: SplashViewController for app entry logic. Manages wallet lifecycle (create, open, delete, recover), network validation, Tor connection status, version migration, and error handling. Supports paper wallet and seed phrase recovery modes with comprehensive async/await operations. |
 | `WalletCreationViewController.swift` | Comprehensive wallet creation and onboarding flow controller with multi-state management and biometric authentication. Exports: WalletCreationViewController extending DynamicThemeViewController, WalletCreationState enum (initial, createEmojiId, showEmojiId, localAuthentication, enableNotifications). Dependencies: Lottie, LocalAuthentication, AVFoundation, various UI components, TariLib (wallet address), AppRouter. Used by: App entry flow for new wallet setup. Features state machine with Lottie animations (checkMark, emojiWheel, faceID, touchID, nerdEmoji), emoji ID display, biometric setup, and configuration state management with TariSettings. |
 
@@ -3439,8 +3013,8 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 
 | File | Description |
 |------|-------------|
-| `DesignSystemViewController.swift` | Design system showcase and testing interface displaying all styled UI components including buttons (primary, secondary, outlined, inherit, text) in various sizes and states, plus typography samples. Features scrollable layout with comprehensive component library for design validation and development reference. |
-| `UIViewController+DebugMenu.swift` | UIViewController extension adding debug menu functionality triggered by device shake gesture. Provides motion detection override to show debug popup with options: Design System, Logs, Bug Report, Connection Status. Uses PopUpPresenter with TariPopUp components for consistent debug interface. Handles navigation to LogsListConstructor, DesignSystemViewController, BugReportingConstructor, and AppConnectionHandler connection status. Includes app version display in popup footer. Essential debug tool for developers and testers to access diagnostic features from any screen in the app. |
+| `DesignSystemViewController.swift` | Design system showcase and testing interface displaying all styled UI components including buttons (primary, secondary, outlined, inherit, text) in various sizes and states, plus typography samples. Features scrollable layout with comprehensive component library for design validation and development reference. Updated to use @TariView property wrapper for view management and improved layout constraints. |
+| `UIViewController+DebugMenu.swift` | UIViewController extension adding debug menu functionality triggered by device shake gesture. Provides motion detection override to show debug popup with options: Design System, New Design System (SwiftUI), Logs, Bug Report, Connection Status. Uses PopUpPresenter with TariPopUp components for consistent debug interface. Handles navigation to LogsListConstructor, DesignSystemViewController, new SwiftUI design system, BugReportingConstructor, and AppConnectionHandler connection status. Includes app version display in popup footer. Essential debug tool for developers and testers to access diagnostic features from any screen in the app. |
 
 ###### MobileWallet/Screens/Debug/Logs/List/
 
@@ -3507,11 +3081,20 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | File | Description |
 |------|-------------|
 | `TransactionDetailsCell.swift` | Table view cell for transaction details rows implementing DynamicThemeCell with comprehensive configuration options. Wrapper around DetailView component that handles all transaction detail display logic. Supports multiple cell types through properties: address cells with emoji/raw format toggling, contact cells with add/edit buttons, block explorer cells with external links, and standard value cells with copy functionality. Manages callbacks for various actions: copy operations, contact management, address format switching, and block explorer navigation. Fixed height of 74px with 22px horizontal margins. Implements proper cell reuse cleanup with prepareForReuse. Dependencies: TariCommon, DetailView component, DynamicThemeCell protocol. Used by: TransactionDetailsViewController for displaying transaction information rows. |
-| `TransactionDetailsConstructor.swift` | Constructor factory for transaction details screen using dependency injection pattern. Creates TransactionDetailsViewController with TransactionDetailsModel initialized with Transaction object. Simple factory method buildScene(transaction:) following app's consistent constructor pattern. Used throughout the app for navigating to transaction details from transaction lists, notifications, and deep links. Provides clean separation of concerns and testable architecture for transaction detail screens. |
-| `TransactionDetailsModel.swift` | Comprehensive model for transaction details screen managing transaction data, contact integration, and user interactions. Uses Combine for reactive state management with @Published properties for UI binding. Handles transaction states, amounts, fees, addresses, contacts, notes, GIF media, and block explorer links. Integrates with ContactsManager for contact CRUD operations, transaction cancellation, alias updates, and address format toggling. Supports all transaction types including coinbase, inbound/outbound, pending/completed. Provides real-time transaction updates and comprehensive error handling for robust transaction detail experience. |
+| `TransactionDetailsConstructor.swift` | Factory class for creating transaction detail views with SwiftUI migration support. Currently builds UIHostingController wrapping SwiftUI TransactionDetails view instead of legacy UIKit TransactionDetailsViewController. Includes commented legacy code for rollback capability during SwiftUI transition testing phase. |
+| `TransactionDetailsModel.swift` | Enhanced transaction details business logic model with payment reference support and improved contact management. Features payment reference confirmation tracking, wallet block height monitoring, raw transaction details generation, and streamlined contact alias handling. Adds confirmation count calculations, block height tracking via Combine publishers, and comprehensive transaction data formatting for both UIKit and SwiftUI implementations. |
 | `TransactionDetailsView.swift` | View component for transaction details screen implementing DynamicThemeView protocol. Simple container view with navigation bar and theme-aware background. Manages title property through NavigationBar component and handles theme updates by setting background to secondary color. Minimal view structure serving as container for TransactionDetailsViewController's table view content. Exports: title property getter/setter. Dependencies: TariCommon, NavigationBar component, DynamicThemeView protocol. Used by: TransactionDetailsViewController as main view container. |
-| `TransactionDetailsViewController.swift` | Main view controller for transaction details screen using MVVM architecture with Combine bindings. Displays comprehensive transaction information in table view format with cells for amount, direction, contact name, date, transaction ID, status, and optional note/fee. Features reactive UI updates through @Published properties, copy-to-clipboard functionality with toast notifications, address format toggling (emoji/raw), and contact management integration. Handles special cases for coinbase transactions (hides certain fields). Supports block explorer links, contact editing/adding, and clipboard operations. Contains custom table cell management with TransactionDetailsCell and TransactionTotalCell. Implements toast notification system for copy confirmations. Dependencies: TariCommon, Combine, TransactionDetailsModel, PopUpPresenter, AddContactConstructor. Used by: Transaction list items for detailed transaction viewing. |
+| `TransactionDetailsViewController.swift` | Enhanced UIKit transaction details controller with payment reference support and raw details copying. Features additional table view cells for payment reference display, confirmation status tracking, copy raw details button, and improved address/note handling. Implements dynamic cell counting based on transaction type, payment reference confirmation states, and comprehensive copy functionality with proper truncation and validation. |
 | `TransactionTotalCell.swift` | Transaction details table view cell that displays the total transaction amount. Extends DynamicThemeCell with automatic theme support. Contains a "Total" label on the left and a configurable total value label on the right with semibold Poppins font. Uses Auto Layout constraints with 22pt horizontal margins and fixed 48pt height. Exports: TransactionTotalCell class, totalText property. Dependencies: TariCommon, UIKit. Used by: Transaction details screen table view. Updates text color based on current theme. |
+
+###### MobileWallet/Screens/Home/Transaction Details/SwiftUI/
+
+| File | Description |
+|------|-------------|
+| `CopyRawDetailsButton.swift` | SwiftUI button component for copying raw transaction details with visual feedback. Features TariButton with outlined style, dynamic icon switching between copy and checkmark states, and implements Copying protocol for feedback animation. Uses @State for copy status tracking and provides action callback for raw transaction data copying functionality. |
+| `PaymentReferenceInfoSheet.swift` | SwiftUI modal sheet explaining payment reference functionality. Features modal title, descriptive text about payment ID privacy protection, and close button. Uses presentationDetents for fixed height presentation and provides user education about payment reference lookup capabilities while maintaining privacy. |
+| `TransactionDetails+Actions.swift` | SwiftUI transaction details business logic extension with comprehensive transaction data processing. Features transaction status determination, confirmation counting, payment reference handling, contact management, and raw details generation. Implements real-time transaction updates via Combine publishers, address formatting, block explorer integration, and transaction lifecycle tracking with proper error handling. |
+| `TransactionDetails.swift` | SwiftUI transaction details view with comprehensive transaction information display. Features scrollable transaction details, copy functionality, contact editing, payment reference info, and real-time updates. Uses NavigationStack with toolbar, sheet presentations for editing, and reactive state management. Displays transaction amounts, addresses, payment references, contact names, dates, block heights, and status with proper formatting and user interactions. |
 
 ###### MobileWallet/Screens/Home/Transaction Details/Views/
 
@@ -3882,6 +3465,37 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `SettingsProfileCell.swift` | Table view cell for settings profile section displaying user avatar and wallet information. Exports: SettingsProfileCell class with ViewModel struct. Dependencies: UIKit, Theme system, avatar components. Features: circular avatar display, wallet name and details, profile editing access, dynamic theming support, responsive layout. Top section of settings screen showing user profile summary. |
 | `SettingsViewFooter.swift` | Footer view component for settings screen displaying app version and additional information. Exports: SettingsViewFooter class. Dependencies: UIKit, Theme system, app version utilities. Features: app version display, centered text layout, dynamic theming support, subtle typography. Provides version information at bottom of settings screen for reference and debugging. |
 
+##### MobileWallet/SwiftUI/Buttons/
+
+| File | Description |
+|------|-------------|
+| `CopyButton.swift` | SwiftUI copy button component with visual feedback for copying text to clipboard. Features animated state changes between copy and checkmark icons, implements Copying protocol for reusable feedback behavior. Uses IconButton with template styling and UIPasteboard integration. Includes 1-second feedback animation showing success state. Part of SwiftUI design system for transaction details and text copying functionality. |
+| `EmojiToggle.swift` | SwiftUI toggle button for switching between emoji and text address display modes. Features animated state transitions and template-styled icons. Uses binding for reactive state management and withAnimation for smooth transitions. Part of SwiftUI design system for address format selection in transaction interfaces. |
+| `IconButton.swift` | SwiftUI icon button component for displaying UIImage icons with tap actions. Features template styling for theme-aware icon coloring and customizable action callbacks. Simple wrapper around SwiftUI Button with consistent icon presentation. Part of SwiftUI design system for toolbar and interface actions. |
+| `TariButton.swift` | Comprehensive SwiftUI button component with multiple styles and sizes for the Tari design system. Supports primary, secondary, outlined, and text styles with large, medium, and small sizes. Features optional leading icons, disabled states, and theme-aware styling. Includes capsule background shapes, stroke borders, and responsive typography. Core UI component for consistent button appearance across SwiftUI interfaces. |
+
+##### MobileWallet/SwiftUI/Extensions/
+
+| File | Description |
+|------|-------------|
+| `Image+Style.swift` | SwiftUI Image extension for template-style rendering with custom colors. Provides templateStyle modifier for theme-aware icon coloring throughout the app. Simple utility for consistent image styling in SwiftUI components. |
+| `Toolbar+Items.swift` | SwiftUI toolbar extension providing standardized back button item for navigation bars. Features consistent back arrow styling with theme-aware colors and customizable action callbacks. Part of SwiftUI design system for navigation consistency. |
+| `View+Backgrount.swift` | SwiftUI View extension for applying scene-wide background colors that extend beyond safe areas. Provides sceneBackground modifier for consistent full-screen background styling. Part of SwiftUI design system utilities. |
+
+##### MobileWallet/SwiftUI/ListItems/
+
+| File | Description |
+|------|-------------|
+| `SettingsItem.swift` | SwiftUI list item component for settings menu entries with icons and titles. Features consistent spacing, dividers, and theme-aware styling. Uses HStack layout with trailing spacer and integrated divider. Part of SwiftUI design system for settings interfaces. |
+| `TransactionDetailItem.swift` | SwiftUI component for displaying transaction detail rows with labels, values, and optional actions. Features customizable value colors, tap actions, and trailing action buttons. Includes divider styling and consistent spacing. Supports both simple text display and interactive elements. Part of SwiftUI design system for transaction detail screens. |
+
+##### MobileWallet/SwiftUI/Typography/
+
+| File | Description |
+|------|-------------|
+| `Font+Poppins.swift` | SwiftUI Font extension providing Poppins font family integration with weight variants. Defines PoppinsWeight enum for regular, medium, semiBold, and bold styles. Core typography foundation for SwiftUI design system ensuring consistent font usage across the app. |
+| `Text+Typography.swift` | Comprehensive SwiftUI typography system with predefined text styles and modifiers. Defines heading, body, button, and modal text styles using Poppins fonts. Provides both Font extensions and View/Text modifiers for consistent typography throughout SwiftUI interfaces. Core design system component for text styling and hierarchy. |
+
 #### MobileWallet/UIElements/
 
 | File | Description |
@@ -4061,3 +3675,4 @@ This documentation provides a comprehensive overview of the Tari Aurora iOS wall
 | `Fastfile` | Fastlane automation configuration for iOS deployment and debugging. Implements dsym lane for uploading debug symbols to Sentry crash reporting service with configurable authentication, organization, project parameters, and dSYM file paths. Essential for automated crash reporting setup and release management. Enables continuous integration and deployment workflows with proper crash analysis capabilities. Used by CI/CD systems for automated App Store deployment and debug symbol management. |
 | `Pluginfile` | [GENERATED] Fastlane plugin configuration file specifying required plugins for build automation. Currently includes fastlane-plugin-sentry for crash reporting integration during builds. Autogenerated and maintained by Fastlane gem management system. Essential for build pipeline functionality and Sentry integration for release monitoring. |
 
+---

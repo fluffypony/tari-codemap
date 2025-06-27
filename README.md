@@ -7,41 +7,46 @@ This repository contains detailed codebase analyses and architectural overviews 
 ## Available Codemaps
 
 ### 🌐 [Tari Core Protocol](tari.md)
-*Decentralized privacy-preserving blockchain protocol*
+*Privacy-focused Rust cryptocurrency implementing Mimblewimble protocol*
 - **Repository**: [tari-project/tari](https://github.com/tari-project/tari)
-- **Focus**: Mimblewimble protocol, merge-mining with Monero, digital asset management
-- **Architecture**: Rust monorepo with layered infrastructure and gRPC service communication
+- **Focus**: Mimblewimble protocol, merge-mining with Monero, and modular architecture
+- **Architecture**: Service-oriented async architecture with layered design and encrypted P2P communication
 
 ### ⚡ [Glytex GPU Miner](glytex.md)
-*High-performance SHA3/Keccak GPU mining application*
+*High-performance GPU mining application for Tari cryptocurrency*
 - **Repository**: [tari-project/glytex](https://github.com/tari-project/glytex)  
-- **Focus**: Multi-backend GPU mining (CUDA, OpenCL, Metal) with trait-based abstraction
-- **Architecture**: Layered multi-backend system with HTTP monitoring and P2Pool integration
+- **Focus**: Multi-backend GPU mining (CUDA, OpenCL, Metal) with comprehensive platform support
+- **Architecture**: Layered multi-backend mining system with trait-based abstraction and HTTP monitoring
 
 ### 🏊 [SHA-P2Pool](sha-p2pool.md)
-*Decentralized mining pool with share chain consensus*
+*Decentralized pool mining software implementing SHA-3 algorithm mining*
 - **Repository**: [tari-project/sha-p2pool](https://github.com/tari-project/sha-p2pool)
-- **Focus**: P2Pool mining with libp2p networking and instant decentralized payouts
-- **Architecture**: Service-oriented architecture with domain-driven design and LWMA difficulty adjustment
+- **Focus**: Decentralized mining pool with in-memory share chain and instant payouts
+- **Architecture**: Service-oriented architecture with domain-driven design and HotStuff BFT consensus
 
 ### 📱 [Tari Android Wallet](wallet-android.md)
-*Android wallet with biometric authentication and Tor privacy*
+*Cryptocurrency wallet Android app with native Rust core*
 - **Repository**: [tari-project/wallet-android](https://github.com/tari-project/wallet-android)
-- **Focus**: MVVM architecture with JNI/FFI Rust integration and UTXO management
-- **Architecture**: Layered Android app with Dagger 2 DI, Jetpack Compose, and C++/Rust FFI bridge
+- **Focus**: MVVM architecture with FFI integration, Tor privacy, and biometric security
+- **Architecture**: Mixed XML Views + Jetpack Compose UI with Dagger 2 DI and C++/Rust FFI bridge
 
 ### 🍎 [Tari iOS Wallet](wallet-ios.md)
-*iOS Aurora wallet with Tor integration and iCloud backup*
-
+*Cryptocurrency wallet app for Tari blockchain with privacy-first architecture*
 - **Repository**: [tari-project/wallet-ios](https://github.com/tari-project/wallet-ios)
-- **Focus**: Privacy-first iOS wallet with Combine reactive programming and biometric security
-- **Architecture**: MVVM with UIKit, Combine framework, and Swift FFI bindings to Rust core
+- **Focus**: Hybrid Swift/UIKit and SwiftUI app with Rust core via FFI and Tor networking
+- **Architecture**: MVVM with reactive Combine framework and 4-layer structure: UI → Business Logic → Service → Core
 
 ### 🌌 [Tari Universe](universe.md)
-*Desktop mining application with integrated wallet and gamification*
+*Desktop cryptocurrency mining application built with modern web stack*
 - **Repository**: [tari-project/universe](https://github.com/tari-project/universe)
-- **Focus**: Cross-platform desktop mining app with React frontend, Rust backend, and airdrop game
-- **Architecture**: Tauri-based app with React/TypeScript UI, Rust backend, and external mining binary management
+- **Focus**: Cross-platform desktop mining with React frontend, Rust backend, and native integration
+- **Architecture**: Tauri 2.x framework with React 19.1.0/TypeScript UI and Tokio async runtime
+
+### 🔧 [Tari-Ootle](tari-ootle.md)
+*Layer 2 sharded blockchain platform with smart contract execution*
+- **Repository**: [tari-project/tari-ootle](https://github.com/tari-project/tari-ootle)
+- **Focus**: Distributed validator nodes with HotStuff BFT consensus and WASM-based templates
+- **Architecture**: Multi-layered architecture with JSON-RPC 2.0 APIs and React-based web UIs
 
 ## Usage
 

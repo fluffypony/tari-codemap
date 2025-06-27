@@ -1,298 +1,80 @@
 # Tari
 
-**Repository:** https://github.com/tari-project/tari
-
-**Branch:** development
-
 ## Project Overview
 
-## An In-Depth Overview of the Tari Codebase
+## Tari Codebase Overview
 
-### Introduction
+### System Summary
+Tari is a privacy-focused Rust cryptocurrency implementing Mimblewimble protocol with merge mining support, hardware wallet integration, and a modular architecture. Built for high-performance P2P operations with async/await patterns throughout.
 
-Welcome to the Tari codebase. This document provides a comprehensive technical overview designed to onboard new developers.
-
-Tari is a decentralized, open-source, private-by-default blockchain protocol built in Rust. It is designed for the management and transfer of digital assets. The protocol merges the privacy-preserving features of the Mimblewimble blockchain protocol with the robust security of the Monero project through merge-mining.
-
-The project is structured as a monorepo containing multiple Rust crates, organized into distinct layers: low-level infrastructure, peer-to-peer communications, a core blockchain base layer, and user-facing applications. This modular design promotes code reuse and clear separation of concerns.
-
-This guide will walk you through the architecture, core components, key workflows, and development practices of the Tari project.
-
-### 1. Directory Structure
-
-The Tari repository is a Cargo workspace containing numerous crates. The top-level structure is organized by functionality, reflecting the system's layered architecture.
-
+### Directory Structure
 ```
-.
-├── applications/         # End-user applications (binaries)
-│   ├── minotari_node/        # The full blockchain node
-│   ├── minotari_console_wallet/ # A terminal-based wallet
-│   ├── minotari_miner/       # Standalone SHA3X miner
-│   └── minotari_merge_mining_proxy/ # Proxy for merge-mining with Monero
-├── base_layer/           # Core blockchain protocol and logic
-│   ├── core/               # Fundamental types: Blocks, Transactions, Consensus, Validation
-│   ├── comms/              # Peer-to-peer communication framework
-│   ├── p2p/                # P2P services built on top of comms
-│   ├── wallet/             # The core wallet library (used by applications)
-│   └── key_manager/        # Cryptographic key management service
-├── clients/              # Client libraries for different languages
-│   ├── ffi_client/         # NodeJS example using the FFI library
-│   └── rust/               # Rust gRPC clients for the Base Node and Wallet
-├── common/               # Shared utilities used across the entire workspace
-│   ├── config/             # Default configuration files
-│   └── logging/            # Logging setup and configuration
-├── comms/                # The low-level P2P communication stack
-│   ├── core/               # Core networking primitives (transports, multiplexing, encryption)
-│   └── dht/                # Distributed Hash Table for peer discovery and message routing
-├── infrastructure/       # Foundational, reusable library crates
-│   ├── storage/            # Key-value store abstractions (LMDB)
-│   ├── tari_script/        # Tari's scripting language VM
-│   ├── metrics/            # Prometheus metrics collection
-│   └── shutdown/           # Graceful shutdown signaling
-├── integration_tests/    # End-to-end BDD tests using Cucumber
-├── .github/workflows/    # CI/CD automation pipelines
-└── scripts/              # Build, release, and utility scripts
+tari/
+├── applications/          # Runnable binaries (node, wallet, miner, merge mining proxy)
+│   ├── minotari_node/     # Full blockchain node (main network participant)
+│   ├── minotari_console_wallet/  # TUI wallet application
+│   ├── minotari_miner/    # Standalone SHA3/RandomX miner
+│   ├── minotari_merge_mining_proxy/  # Monero/Tari merge mining coordinator
+│   └── minotari_app_grpc/ # Shared gRPC protocol definitions
+├── base_layer/           # Core blockchain libraries
+│   ├── core/             # Blockchain protocol, consensus, validation
+│   ├── wallet/           # UTXO management, transaction lifecycle
+│   ├── p2p/              # High-level P2P services
+│   ├── mmr/              # Merkle Mountain Range implementation
+│   └── key_manager/      # HD key derivation, hardware wallet support
+├── comms/               # Low-level P2P communication stack
+│   ├── core/            # Noise encryption, transport, peer management
+│   └── dht/             # Kademlia DHT for peer discovery
+├── infrastructure/      # Foundational utilities
+│   ├── tari_script/     # Stack-based scripting language
+│   ├── storage/         # Storage abstractions
+│   └── shutdown/        # Graceful shutdown coordination
+├── common/             # Cross-cutting concerns (config, logging, features)
+├── integration_tests/   # End-to-end Cucumber BDD tests
+└── clients/            # Example client implementations
 ```
 
-### 2. Overall Architecture
-
-Tari's architecture is a multi-layered system designed for modularity, security, and extensibility. At its core, it's a Rust project structured as a single monorepo but composed of many loosely-coupled crates.
-
-#### Architectural Layers
-
-1. **Infrastructure Layer (`infrastructure/`)**: This is the lowest level, providing foundational, domain-agnostic components. Crates here include `tari_script` (a simple stack-based VM for transaction validation), `storage` (an abstraction over key-value stores like LMDB), `metrics`, and `shutdown` signaling. These components have minimal dependencies on the rest of the Tari codebase.
-
-2. **Communications (Comms) Layer (`comms/`)**: This layer provides the peer-to-peer networking stack. It's responsible for establishing secure, authenticated, and multiplexed connections between nodes.
-   * `comms/core`: Implements the fundamental networking primitives: various transports (TCP, Tor, in-memory), Noise protocol encryption (`noise`), stream multiplexing (`yamux`), and peer/connection management.
-   * `comms/dht`: Builds upon `comms/core` to implement a Kademlia-based Distributed Hash Table (DHT) for peer discovery and robust message routing.
-
-3. **Base Layer (`base_layer/`)**: This is the heart of the Tari protocol. It contains all the logic for the blockchain itself.
-   * `base_layer/core`: Defines the core data structures (`Block`, `Transaction`), consensus rules, validation logic, and the blockchain database (`chain_storage`).
-   * `base_layer/p2p`: Integrates the `comms` layer to build specific P2P services for the base node, such as block and transaction propagation.
-   * `base_layer/wallet` & `key_manager`: These are libraries that provide the core logic for wallet functionality and secure key management, respectively. They are used by wallet applications.
-
-4. **Applications Layer (`applications/`)**: These are the final executables that users and node operators interact with. They assemble the various libraries from the lower layers into functional programs.
-   * `minotari_node`: The full base node daemon.
-   * `minotari_console_wallet`: A TUI/CLI wallet application.
-   * `minotari_miner`: A standalone miner for the SHA3X PoW algorithm.
-   * `minotari_merge_mining_proxy`: A proxy that allows Monero miners (like XMRig) to merge-mine Tari.
-
-#### Component Interaction and Data Flow
-
-Communication between components happens through two primary mechanisms:
-
-1. **Inter-process Communication (gRPC)**: Applications (like the wallet or a block explorer) communicate with the Base Node daemon using gRPC. The `minotari_app_grpc` crate defines all the protocol buffer schemas (`.proto` files) and generates the corresponding Rust code, serving as a single source of truth for the gRPC API. This provides a strongly-typed, language-agnostic interface for external tools.
-
-2. **Intra-process Communication (Service Framework & Actor Model)**: Within a single process (like the `minotari_node`), components are structured as long-running services that communicate asynchronously via message-passing channels. The `tari_service_framework` provides the infrastructure for this, resembling the Actor model. Each major component (e.g., `ConnectionManager`, `DhtActor`, `Mempool`) runs in its own async task and exposes a "handle" for other services to send requests to it.
-
-A typical data flow for a transaction looks like this:
-
-1. A user initiates a transaction in the `minotari_console_wallet`.
-2. The wallet application makes a `send_transaction` gRPC call to a running `minotari_node`.
-3. The `minotari_node`'s gRPC server receives the request and passes it to its `Mempool` service.
-4. The `Mempool` (`base_layer/core/src/mempool`) validates the transaction and, if valid, stores it in the unconfirmed pool.
-5. The `Mempool` service then uses the `Dht` (`comms/dht`) to propagate this new transaction to its peers.
-6. Other nodes receive the transaction, validate it, and add it to their own mempools.
-7. A miner (either `minotari_miner` or a merge miner via the `minotari_merge_mining_proxy`) requests a block template from its base node via a gRPC call.
-8. The base node constructs a template including transactions from its mempool.
-9. The miner finds a valid Proof of Work and submits the completed block back to the base node.
-10. The `minotari_node` uses its `ChainStorage` (`base_layer/core/src/chain_storage`) and `Validation` (`base_layer/core/src/validation`) components to validate and add the block to its local blockchain database.
-11. The new block is then propagated to peers.
-
-[Tari Architecture Diagram](https://raw.githubusercontent.com/tari-project/tari/development/docs/src/diagrams/comms/index.png)
-
-### 3. Core Business Logic and Main Workflows
-
-The Tari protocol's primary goal is to facilitate the creation and transfer of digital assets in a private and scalable manner.
-
-#### Mimblewimble and Privacy
-
-Tari is built on the Mimblewimble protocol, which provides privacy and scalability by default. Key concepts include:
-
-* **Confidential Transactions**: Transaction amounts are cryptographically hidden using Pedersen Commitments. Only the sender and receiver can verify the amounts.
-* **No Addresses on-chain**: There are no public addresses recorded on the blockchain. Transactions are built interactively between sender and receiver wallets.
-* **Cut-through**: Intermediate transactions in a block can be "cut through," meaning only the net effect of inputs and outputs remains on the chain. This significantly reduces blockchain bloat and improves scalability.
-
-A Tari transaction consists of three main parts, defined in `base_layer/core/src/transactions/transaction_components`:
-* **Inputs**: References to previous Unspent Transaction Outputs (UTXOs) that are being spent.
-* **Outputs**: New UTXOs being created. Each output contains a commitment, a range proof (to prove the amount is positive), and a TariScript.
-* **Kernels**: Contain the excess commitment (proving the transaction balances to zero), the transaction fee, and an aggregate signature from all participants.
-
-#### Hybrid Proof-of-Work
-
-Tari uses a hybrid Proof-of-Work (PoW) system to secure the network, allowing participation from different types of hardware and leveraging the security of an established network.
-
-1. **SHA3X**: A custom, ASIC-resistant PoW algorithm designed for standalone Tari mining. This is implemented in `base_layer/core/src/proof_of_work/sha3x_pow.rs` and is the target for the `minotari_miner` application.
-
-2. **RandomX**: The same algorithm used by Monero. This enables **merge-mining**, where Monero miners can submit their PoW solutions to the Tari network simultaneously, without any additional mining cost. This bootstraps Tari's security by piggybacking on Monero's significant hash rate. The `minotari_merge_mining_proxy` facilitates this by acting as a bridge between standard Monero mining software (like XMRig) and a Tari node.
-
-#### Node Synchronization Workflow
-
-When a new node joins the network, it must synchronize its state with its peers. This is managed by a sophisticated state machine found in `base_layer/core/src/base_node/state_machine_service`.
-
-1. **Starting**: The node initializes and bootstraps its connection to the DHT network.
-2. **Listening**: The node listens for chain metadata from its peers to determine the network's current state (tip height, total accumulated difficulty).
-3. **Header Sync**: If the node is behind, it enters `HeaderSync` state. It downloads and validates block headers in batches from the peer with the strongest chain (highest accumulated difficulty). This is much faster than downloading full blocks.
-4. **Decide Next Sync**: After syncing headers, the node decides how to sync the block bodies.
-5. **Horizon Sync (for Pruned Nodes)**: A pruned node doesn't store the full blockchain history. Instead, it performs a "horizon sync" where it downloads only the set of current UTXOs and corresponding kernel data, which is much smaller than the full block history.
-6. **Block Sync (for Archival Nodes)**: An archival node downloads all historical block bodies from its peers to build a complete copy of the blockchain.
-7. Once synchronized, the node returns to the **Listening** state, where it processes new blocks and transactions as they are propagated through the network.
-
-#### Digital Asset Network (DAN) - Future Work
-
-The codebase contains significant groundwork for a second-layer Digital Asset Network (DAN). This layer will enable the creation and management of various digital assets on top of the Tari base layer. Key components related to this include:
-* `validator_node.proto` and related sidechain features in `sidechain_feature.proto`.
-* `TemplateRegistration` features for deploying smart contract-like templates.
-* `ValidatorNodeRegistration` features for nodes to register as validators on the second layer.
-
-### 4. Key Technical Patterns and Conventions
-
-The Tari codebase adheres to modern Rust best practices and employs several key design patterns to ensure robustness, maintainability, and security.
-
-* **Actor Model via Service Framework**: The system is heavily based on an actor-like architecture where concurrent components (services) are isolated and communicate asynchronously via message channels. The `tari_service_framework` crate provides the foundation for this, allowing developers to define services, their request/response messages, and their initializers. This pattern simplifies concurrency and prevents deadlocks.
-
-* **Builder Pattern**: For objects with complex configurations, the builder pattern is used extensively. `CommsBuilder`, `DhtBuilder`, `BlockBuilder`, and `TransactionBuilder` are prime examples. This provides a fluent, readable, and type-safe way to construct complex objects.
-
-* **Foreign Function Interface (FFI)**: A key goal is to support mobile wallets. The `minotari_wallet_ffi` crate exposes the core wallet logic through a C-compatible API. The `build.rs` script uses `cbindgen` to automatically generate the C header file (`wallet.h`), ensuring the Rust and C interfaces stay in sync.
-
-* **Protocol Buffers and gRPC**: All inter-application communication relies on gRPC, with `tonic` as the Rust implementation. Protocol definitions are centralized in the `minotari_app_grpc` crate's `.proto` files, which act as the authoritative schema for communication between the base node, wallet, miner, and other tools.
-
-* **Comprehensive Error Handling**: `thiserror` is used throughout the codebase to create descriptive, typed errors. This allows for fine-grained error handling and clear propagation of failure conditions, which is critical for a financial system.
-
-* **Domain-Separated Hashing**: To prevent cross-protocol replay attacks and ensure cryptographic hygiene, Tari uses domain separation for all its hashing operations. The `tari_hashing` crate provides a `DomainSeparatedHasher` that prefixes all hashed data with a unique, context-specific string.
-
-* **Monorepo with Cargo Workspaces**: The entire project is contained in a single Git repository, managed as a Cargo workspace. This simplifies dependency management, ensures all crates are built against a consistent set of dependencies (enforced by the root `Cargo.lock`), and makes cross-cutting changes easier to manage.
-
-* **Secure Coding Practices**: The codebase shows a strong focus on security. This is evident in the use of `zeroize` to securely clear sensitive data from memory, constant-time operations for cryptographic comparisons (`subtle`), and a comprehensive security policy (`SECURITY.md`) with a bug bounty program.
-
-### 5. Important Dependencies and Integrations
-
-Tari is built upon a foundation of high-quality, community-vetted Rust libraries and integrates with other best-in-class open-source projects.
-
-* **Async Runtime**: `tokio` is used as the asynchronous runtime for all networking and concurrent services.
-
-* **gRPC/Protobuf**: `tonic` and `prost` provide the gRPC server/client implementation and protocol buffer tooling.
-
-* **Database**:
-  * **LMDB (`lmdb-zero`)**: A high-performance, memory-mapped key-value store is used for the core blockchain database. This is managed through the `tari_storage` crate.
-  * **SQLite (`diesel`)**: The Diesel ORM with an SQLite backend is used for structured data, including the wallet database, peer manager, and contacts. The `tari_common_sqlite` crate provides a shared wrapper.
-
-* **Networking**:
-  * **`yamux`**: For multiplexing multiple logical streams over a single TCP or Tor connection.
-  * **`snow`**: The Rust implementation of the Noise Protocol Framework, used for end-to-end encryption of P2P traffic.
-  * **`multiaddr`**: A standard for self-describing network addresses, used to represent peer connection information.
-
-* **Cryptography**:
-  * `tari_crypto`: Tari's own cryptographic library, providing implementations of Ristretto, Schnorrkel signatures, Pedersen commitments, and Bulletproofs+.
-  * `randomx-rs`: A Rust binding for the RandomX proof-of-work algorithm used in Monero.
-
-* **External Integrations**:
-  * **Monero**: The `monero` crate is used by the merge-mining proxy to interact with Monero's data structures.
-  * **Tor**: The `libtor` crate provides an embedded Tor client, allowing Tari nodes to run over Tor for enhanced privacy without requiring a separate Tor installation.
-  * **Ledger**: The `minotari_ledger_wallet` crate family provides full support for building and communicating with the Tari application on Ledger hardware wallets.
-
-### 6. Database Schema Overview
-
-Tari uses two different types of databases for two different purposes: a high-performance key-value store for the blockchain itself, and a relational database for application-level data like wallet and peer information.
-
-#### Blockchain Database (LMDB)
-
-The main blockchain database is an LMDB instance located in the base node's data directory. It is not a relational database; it is a key-value store optimized for very fast reads. The data is organized into different "databases" (which are like tables) within the main LMDB environment. The keys are defined in `base_layer/core/src/chain_storage/db_transaction.rs` as the `DbKey` enum.
-
-Key-value pairs stored include:
-* `BlockHeader(height)` → `BlockHeader`
-* `BlockHash(hash)` → `Block`
-* `UTXO(commitment)` → `TransactionOutput`
-* `Kernel(excess_sig)` → `TransactionKernel`
-* `Orphan(hash)` → `Block`
-* Metadata such as chain tip, pruning horizon, etc.
-* The Merkle Mountain Range (MMR) structures for headers, kernels, and outputs.
-
-#### Application Databases (SQLite via Diesel)
-
-The wallet, peer manager, and contacts service all use SQLite for persistent storage, managed via the Diesel ORM. The schema for each is defined by migration files.
-
-* **Wallet Database (`base_layer/wallet/migrations/`)**:
-  * `outputs`: Stores all UTXOs owned by the wallet, including their value, spending keys (encrypted), and status (Unspent, Spent, etc.).
-  * `completed_transactions`: A record of all finalized transactions, including their direction (inbound/outbound), amount, and counterparties.
-  * `inbound_transactions` / `outbound_transactions`: Temporary tables for transactions that are currently being negotiated.
-  * `scanned_blocks`: Tracks the progress of the UTXO scanner.
-  * `wallet_settings`: A key-value store for wallet configuration.
-
-* **Key Manager Database (`base_layer/key_manager/migrations/`)**:
-  * `key_manager_states`: Stores the branch seeds and key indices for the Hierarchical Deterministic (HD) key generation.
-  * `imported_keys`: Stores any private keys that were imported into the wallet rather than derived from the seed.
-
-* **Contacts Database (`base_layer/contacts/migrations/`)**:
-  * `contacts`: An address book storing peer Tari addresses, public keys, and aliases.
-  * `messages`: Stores chat messages for the experimental peer-to-peer messaging feature.
-
-### 7. API Structure (gRPC)
-
-Tari's primary external-facing API is a gRPC interface. This API allows applications like wallets, explorers, and miners to interact with a running base node. All protocol definitions are located in `applications/minotari_app_grpc/proto/`.
-
-#### Key Services
-
-* **BaseNode Service (`base_node.proto`)**: This is the main service for interacting with the blockchain.
-  * **Queries**: `GetChainMetadata`, `ListHeaders`, `GetBlocks`, `SearchKernels`, `SearchUtxos`.
-  * **Submissions**: `SubmitTransaction`, `SubmitBlock`.
-  * **Mining**: `GetNewBlockTemplate` (for miners to get work), `GetMiningData`.
-  * **Network**: `ListPeers`, `AddPeer`, `BanPeer`.
-  * **Streaming**: Exposes several methods that return streams of data, such as `GetHeadersStream`.
-
-* **Wallet Service (`wallet.proto`)**: This service exposes the full functionality of a wallet daemon. A console wallet running in gRPC mode will expose this API.
-  * **Balance & Funds**: `GetBalance`, `GetAvailableBalance`.
-  * **Transactions**: `Transfer` (to send Tari), `CoinSplit`, `CancelTransaction`.
-  * **History**: `GetCompletedTransactions`, `GetCancelledTransactions`.
-  * **Management**: `GetContacts`, `AddContact`, `GetNetworkStatus`.
-  * **Recovery**: `StartRecovery`, `GetRecoveryStatus`.
-
-* **P2Pool Service (`p2pool.proto`)**: A specialized service for decentralized SHA3X mining pools.
-
-#### Authentication & Security
-
-The gRPC endpoints are secured using two mechanisms:
-
-1. **TLS**: The connection itself can be encrypted using TLS. The `minotari_app_grpc/src/tls` module contains utilities for generating self-signed certificates for development and loading production certificates.
-
-2. **Basic Authentication**: Access to gRPC methods can be restricted via username and password. The implementation in `minotari_app_grpc/src/authentication` uses Argon2 for password hashing and constant-time string comparison to prevent timing attacks.
-
-### 8. Testing Approach
-
-Tari employs a multi-faceted testing strategy to ensure the correctness, security, and performance of the protocol.
-
-* **Unit Tests**: Each crate contains its own suite of unit tests, located within the `tests` submodule of each file (`#[cfg(test)]`). These are fast-running tests that verify individual functions and structures in isolation.
-
-* **Integration Tests (`integration_tests/`)**: The project uses the `cucumber` crate for Behavior-Driven Development (BDD).
-  * Test scenarios are written in a human-readable Gherkin format in `.feature` files (e.g., `WalletTransactions.feature`).
-  * These scenarios are then implemented as Rust code in the `tests/steps/` directory.
-  * The test runner (`TariWorld`) spins up actual `minotari_node` and `minotari_console_wallet` processes, making them communicate over the OS networking stack to simulate real-world conditions. This provides a high degree of confidence in the end-to-end functionality.
-
-* **Benchmarking**: Performance-critical components like the mempool and MMRs have benchmark suites in their `benches/` directories, using the `criterion` crate. This helps track performance regressions and optimizations.
-
-* **Mocks and Test Utilities**: The `infrastructure/test_utils` crate and various `test_utils` modules within other crates provide a rich set of tools for testing, including mock services, network transport simulators (`MemorySocket`), and factories for creating test data.
-
-* **Continuous Integration (CI)**: A comprehensive set of CI workflows are defined in `.github/workflows/`.
-  * `ci.yml` runs formatting (`rustfmt`), linting (`clippy`), and unit tests on every pull request. `cargo-nextest` is used for faster test execution.
-  * `integration_tests.yml` runs the full suite of Cucumber tests.
-  * `audit.yml` runs `cargo-audit` to check for security vulnerabilities in dependencies.
-  * Other workflows build binaries, FFI libraries, and Docker images for all supported platforms.
-
-### 9. Build and Deployment Notes
-
-The Tari project is designed to be built and deployed on a variety of platforms including Linux, macOS, and Windows, with support for multiple architectures.
-
-* **Build System**: The primary build tool is `cargo`. A `Makefile` is used for certain tasks like documentation generation.
-
-* **Cross-Compilation**: The `Cross.toml` file configures the `cross` tool for cross-compiling to different architectures, including ARM64 and RISC-V64. This is used extensively in the CI pipelines.
-
-* **Release Automation**: The CI system automates the entire release process. The `build_binaries.yml` workflow builds all application binaries, signs them (using macOS notarization and Windows Trusted Signing), packages them into installers (`.pkg`, `.exe`), and uploads them as release artifacts.
-
-* **Docker Support**: The repository includes `Dockerfile`s in `buildtools/docker_rig` for all applications and third-party dependencies (Tor, Monerod, XMRig). The `build_dockers.yml` workflow automates building and publishing multi-arch Docker images to container registries.
-
-* **Configuration**: Tari applications use a layered configuration system, defined in the `common` crate. Configuration is loaded from a series of `.toml` files located in `common/config/presets`. Users can create a `config.toml` in their data directory to override these defaults. Configuration values can be further overridden by environment variables and finally by command-line arguments. This provides a highly flexible configuration system.
-
-* **FFI Libraries**: The CI pipeline includes a dedicated workflow, `build_libffis.yml`, for building the wallet FFI libraries for all supported mobile (iOS, Android) and desktop platforms. These artifacts are crucial for third-party developers building applications on top of Tari.
+### Architecture
+Service-oriented async architecture with layered design:
+- **Applications** → **Base Layer** → **Communication** → **Infrastructure**
+- Communication via async channels within apps, encrypted P2P between nodes
+- Storage: LMDB for blockchain, SQLite for application data
+- Security: Noise protocol encryption, domain-separated hashing
+
+### Key Files
+- Entry points: `applications/*/src/main.rs` (each app's main function)
+- Config: `common/config/` (network-specific configurations)
+- Core blockchain: `base_layer/core/src/` (consensus, validation, chain storage)
+- Wallet core: `base_layer/wallet/src/` (UTXO management, transaction service)
+- P2P stack: `comms/core/src/` (transport, multiplexing, connectivity)
+- APIs: `applications/minotari_app_grpc/proto/` (gRPC definitions)
+
+### Conventions
+- Service pattern: Each component runs as async service with request/response channels
+- Builder pattern: Complex objects use `.with_*()` builders
+- Domain separation: All crypto operations use `DomainSeparatedHasher`
+- Error handling: `thiserror` for structured errors with context
+- Testing: Unit tests in modules, integration in `tests/`, BDD in `integration_tests/`
+- Linting: `cargo +nightly-2025-01-01 lints clippy` for comprehensive checks
+
+### Critical Patterns
+- **Safe conversions**: Use `try_from()` for integer casts to prevent overflow
+- **SQL optimization**: Direct database queries vs loading all data into memory
+- **Async everywhere**: Built on Tokio, all I/O operations are async
+- **Secure by default**: All network comms encrypted, keys properly managed
+
+### Important Notes
+- **Connectivity optimizations**: DHT handles all peer discovery (no redundant mechanisms)
+- **Database performance**: Use SQL WHERE clauses for peer selection, not in-memory filtering  
+- **Mining integration**: Merge mining proxy coordinates between XMRig, Monero, and Tari
+- **Recovery**: Wallet recovery scans blockchain from birthday block using key derivation
+- **Network layers**: Localnet (dev), Nextnet (testnet), Mainnet (production)
+
+### Build Commands
+- Development: `cargo build --release --all-features`
+- Linting: `cargo +nightly-2025-01-01 lints clippy --all-targets --all-features`
+- Testing: `cargo test --workspace --all-features`
+- Formatting: `cargo +nightly fmt --all`
 
 ## Codebase Structure
 
@@ -305,7 +87,7 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 | `.license.ignore` | License header exclusion file listing files that should be ignored during license header validation. Contains paths to auto-generated files (schema.rs database schemas), asset files (tari_banner.rs, tari_logo.rs), configuration files (entitlements.xml), documentation assets (theme files), and the Tari manifesto. Prevents license header enforcement on files where copyright headers are inappropriate or automatically generated, maintaining clean license compliance checking across the Tari project. |
 | `CODEOWNERS` | GitHub CODEOWNERS file defining code review requirements and ownership for different areas of the Tari codebase. Requires DevOps team approval for CI/CD files (.github/**, scripts/**), lead maintainer approval for consensus-critical code (consensus/**, meta/ management), and core developer approval for base layer components (core/**, key_manager/**, wallet/**). Ensures appropriate expertise reviews critical code changes that could affect security, consensus, or core functionality. Essential for maintaining code quality and security through mandatory code review processes. |
 | `Cargo.lock` | Auto-generated Cargo dependency lock file ensuring reproducible builds across all Tari project environments. Contains precise version specifications and checksums for all direct and transitive dependencies including cryptographic libraries (aes, argon2, ed25519), networking (tokio, tonic), serialization (serde, borsh), database (diesel, lmdb), and Tari-specific crates. Updated to version 4.4.0-pre.0 across all Tari components for release v4.4.0-pre.0. Critical for security auditing, build reproducibility, and dependency management across development, CI/CD, and production deployments. Should not be manually edited. |
-| `Cargo.toml` | Root Cargo workspace configuration for the Tari cryptocurrency project. Defines workspace members including base_layer components (core, wallet, p2p), applications (minotari_node, minotari_console_wallet, minotari_miner, minotari_merge_mining_proxy), communications (comms/core, comms/dht), infrastructure libraries (storage, metrics, shutdown), and client libraries. Sets workspace version to 4.4.0-pre.0 for release v4.4.0-pre.0. Sets up shared dependencies like tari_crypto (0.22.0), external crates, and build configuration with overflow checks enabled in release mode. Configures patch for liblmdb-sys dependency from Tari fork. |
+| `Cargo.toml` | Root workspace manifest that defines the complete Minotari project structure, including three new MCP (Model Context Protocol) applications: minotari_mcp_common (shared MCP infrastructure), minotari_mcp_node (blockchain node MCP server), and minotari_mcp_wallet (wallet MCP server). Manages dependencies and workspace configuration for the entire blockchain platform with AI agent integration capabilities. |
 | `Contributing.md` | Comprehensive contributing guidelines for the Tari open-source project covering development workflow, security requirements, and collaboration processes. Defines 4-branch release process (mainnet, development, nextnet, Esmeralda), feature gate lifecycle, RFC implementation process, and code review requirements (3+ approvals post-mainnet). Includes PR guidelines (single purpose, <400 lines, detailed commit messages), release cycle management (2-month periods), versioning strategy (semver with hard fork considerations), and automated CI requirements. Features extensive code review guidelines, label taxonomy, and best practices for maintaining secure, high-quality financial software. |
 | `Cross.toml` | Cross-compilation configuration for building Tari across multiple target platforms using the cross tool. Defines Docker images, pre-build scripts, and environment variable passthrough for Android (x86_64, aarch64), Linux (aarch64, x86_64, riscv64), and embedded targets. Includes protocol buffer compiler installation, Android-specific flags (CFLAGS=-DMDB_USE_ROBUST=0), cross-compilation toolchain setup, and Ubuntu-based build environments. Enables consistent cross-platform builds for Tari applications supporting diverse hardware architectures and operating systems. |
 | `LICENSE` | BSD 3-Clause License for the Tari project granting broad permissions for use, modification, and distribution while requiring copyright notice retention and disclaimer of liability. Copyright held by The Tari Developer Community since 2019. Permits commercial and non-commercial use, source and binary redistribution, with minimal restrictions. Provides legal framework for open-source collaboration while protecting contributors from liability and preventing unauthorized endorsement claims. Standard permissive license enabling wide adoption and contribution to the Tari cryptocurrency project. |
@@ -513,7 +295,7 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 |------|-------------|
 | `mod.rs` | gRPC module aggregation for Minotari Console Wallet providing transaction event conversion and wallet service integration. Defines TransactionWrapper enum for unified handling of completed, outbound, and inbound transactions, and convert_to_transaction_event function for converting wallet transaction types to gRPC TransactionEvent messages. Exports wallet gRPC server functionality and debouncer utilities. Central coordination point for wallet gRPC API with transaction event streaming and status reporting capabilities. |
 | `wallet_debouncer.rs` | Balance debouncing service for Minotari Console Wallet gRPC server implementing efficient balance caching with event-driven refresh mechanisms. Monitors wallet events (transaction, output manager, connectivity, UTXO scanner) to determine when balance updates are needed, providing cached responses when possible to reduce database load. Features automatic event monitoring startup with duplicate prevention, thread-safe balance caching, scanned height tracking, and comprehensive event handling for transaction lifecycle events including transaction imports, base node changes, TXO validation, and scanning progress. Includes enhanced logging for UTXO scanner events and improved event monitor lifecycle management. Essential for responsive gRPC balance queries while minimizing backend service calls. |
-| `wallet_grpc_server.rs` | Comprehensive gRPC server implementation for Minotari Console Wallet providing full wallet API functionality through tonic-based service. Implements Wallet gRPC service with balance queries, transaction transfers, atomic swaps, HTLC operations, burn transactions, validator registration, address management, connectivity status, software updates, and transaction streaming. Features debounced balance retrieval with automatic event monitor initialization, multi-recipient transfers, SHA atomic swap support, HTLC claim/refund operations, payment ID handling, transaction validation, and real-time event streaming. Includes consensus constants management, TLS support, authentication integration, and comprehensive error handling for all wallet operations. The get_all_completed_transactions method now supports filtering completed transactions by status using a bitflag parameter, allowing clients to retrieve only transactions matching specific status criteria. Essential as the primary programmatic interface for external applications to interact with the wallet. |
+| `wallet_grpc_server.rs` | Complete gRPC server implementation for Minotari wallet functionality providing comprehensive wallet operations through gRPC protocol. Handles balance queries, transaction management, address operations, transfer processing, and wallet state management. Fixed clone_on_copy warning by removing unnecessary clone() call on Copy types. Serves as the primary interface for wallet interactions in the Tari ecosystem with extensive transaction filtering, validation, and status reporting capabilities. |
 
 ###### applications/minotari_console_wallet/src/init/
 
@@ -2963,13 +2745,16 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 
 | File | Description |
 |------|-------------|
-| `config.rs` | Configuration structure for connectivity management behavior. Exports: ConnectivityConfig struct with default implementation. Defines minimum connectivity thresholds, connection pool refresh intervals, connection reaping settings, failure thresholds, tie-breaking delays, peer expiration times, and connection count limits. Default values include 1 min connectivity, 60s refresh interval, 20min inactivity threshold. Used by: connectivity manager for policy configuration. |
-| `connection_pool.rs` | Connection pool state management for tracking peer connectivity status. Exports: ConnectionPool struct, ConnectionStatus enum. Maintains HashMap of NodeId to connection status (NotConnected, Connecting, Connected, Retrying, Failed, Disconnected). Provides methods for updating status, filtering by state, and querying connection statistics. Dependencies: node manager. Used by: connectivity manager for maintaining pool state and making connection decisions. |
-| `connection_stats.rs` | Connection statistics tracking for connectivity analysis. Exports: PeerConnectionStats struct. Tracks per-peer connection metrics including attempt counts, success rates, failure reasons, last connection times, and connection quality indicators. Provides historical data for connection decision making. Used by: connectivity manager for peer ranking and connection retry logic. |
+| `config.rs` | Centralized configuration structure for connectivity management behavior. Exports: ConnectivityConfig struct with Copy, Clone, and Default implementations. Defines minimum connectivity thresholds, connection pool refresh intervals, connection reaping settings, circuit breaker failure thresholds and retry intervals, proactive dialing settings, and connection count limits. All threshold values are centralized here to eliminate hardcoded constants across the connectivity system. Default values include 1 min connectivity, 60s refresh interval, 20min inactivity threshold, 3 failures for circuit breaker threshold, 2min retry interval. Used by: connectivity manager, peer health metrics, and connection stats for policy configuration and threshold enforcement. |
+| `connection_pool.rs` | Connection pool management with enhanced peer filtering capabilities. Exports: ConnectionPool, ConnectionStatus, PeerConnectionState for tracking peer connection states. Manages active peer connections with status tracking (Connected, Connecting, Failed, etc.). Added get_connected_node_ids() method to support connected peer filtering in discovery processes. Implements connection counting, status updates, and inactive connection management. Provides comprehensive filtering and status query methods for connection pool operations. Dependencies: peer manager types, connection types. Used by: connectivity manager for connection state tracking and peer discovery filtering to prevent redundant connection attempts. |
+| `connection_stats.rs` | Peer connection statistics with centralized configuration management. Exports: PeerConnectionStats, LastConnectionAttempt for tracking peer connection history and health. Implements centralized threshold management by using ConnectivityConfig defaults instead of hardcoded values. Tracks connection attempts, failure counts, success/failure timestamps, and integrates with peer health metrics for circuit breaker functionality. Provides both configurable and default threshold methods for backward compatibility. Dependencies: peer health metrics, connectivity config. Used by: connectivity manager for connection state tracking, retry logic, and peer health assessment in proactive dialing decisions. |
 | `error.rs` | Error types for connectivity management operations. Exports: ConnectivityError enum. Defines errors for connection pool operations, peer selection failures, configuration issues, and connectivity manager state problems. Implements error conversion from underlying connection manager and peer manager errors. Dependencies: thiserror, connection_manager, peer_manager. Used by: connectivity manager for error handling and propagation. |
-| `manager.rs` | Core connectivity manager implementation for automated peer connection management. Exports: ConnectivityManager struct. Orchestrates connection pool maintenance, peer selection algorithms, connection reaping, retry logic, and connectivity state monitoring. Implements actor pattern with message handling for connection requests, peer management, and status reporting. Used by: CommsNode as central connection orchestration service. |
+| `manager.rs` | Main connectivity orchestrator for managing peer connections and network health. Exports ConnectivityManager and ConnectivityManagerActor for handling peer lifecycle management. Simplified architecture by removing peer discovery bridge integration since DHT network discovery already handles peer discovery autonomously. Removed proactive dialing metrics collection to eliminate dependency complexity while maintaining full functionality. Fixed critical compilation issues by removing unnecessary clone operations on Copy types (ConnectivityConfig). Integrates proactive dialer for automated network maintenance without duplicate discovery mechanisms. Implements connection pool management, peer banning, circuit breaker metrics, and status transitions. Manages allow-lists, connection reaping, and maintains target connection counts through efficient proactive dialing. Dependencies: connection manager, peer manager, node identity, connectivity components. Used by: base node and other applications requiring P2P connectivity management. |
 | `metrics.rs` | Prometheus metrics collection for connectivity manager operations. Exports metric collection functions for connection pool statistics, connectivity events, peer selection performance, and connection success/failure rates. Tracks connectivity manager health and performance indicators. Dependencies: tari_metrics. Used by: connectivity manager for observability and monitoring. |
-| `mod.rs` | Connectivity management module for maintaining peer connection pools. Exports: ConnectivityManager, ConnectivityRequester, ConnectivityConfig, ConnectionPool. Orchestrates automatic connection management, connection reaping, peer selection, and connectivity monitoring. Maintains desired number of connections and handles automatic reconnection logic. Used by: comms node builder for peer connectivity automation. |
+| `mod.rs` | Connectivity management module with proper feature-gated metrics compilation. Exports: ConnectivityManager, ConnectivityRequester, ConnectivityConfig, ConnectionPool, and feature-gated proactive_dialing_metrics. Orchestrates automatic connection management, connection reaping, peer selection, and connectivity monitoring. Fixed metrics module compilation by adding proper #[cfg(feature = \"metrics\")] guards and providing stub implementations when metrics are disabled. Module serves as the main interface for peer connectivity automation and network maintenance. Dependencies: connection manager, peer manager, various connectivity submodules. Used by: comms node builder for comprehensive peer connectivity automation with optional metrics collection. |
+| `peer_health.rs` | Peer health tracking and circuit breaker implementation for connection reliability. Exports CircuitBreakerState and PeerHealthMetrics for monitoring peer connection quality and preventing cascade failures. Implements circuit breaker pattern with configurable failure thresholds, retry intervals, and state transitions (Closed/Open/HalfOpen). Tracks connection success rates, consecutive failures, and health scores for proactive dialing decisions. Simplified by removing metrics collection to eliminate dependency overhead while maintaining full functionality. Dependencies: datetime utilities for timing operations. Used by: connectivity manager and proactive dialer for peer selection and connection management strategies. |
+| `proactive_dialer.rs` | Proactive connection management for maintaining optimal peer connectivity without metrics overhead. Exports ProactiveDialer for automated peer dialing based on network health and connectivity requirements. Implements SQL-based peer selection using get_available_dial_candidates() for performance optimization, avoiding memory-intensive loading of entire peer database. Features intelligent health scoring, circuit breaker patterns, connection success rate tracking, and adaptive dialing strategies. Supports configurable target connection counts, retry intervals, and connection quality assessment. Simplified by removing all metrics collection to eliminate tari_metrics dependency complexity. Dependencies: peer manager with SQL filtering, connection manager, connectivity config. Used by: connectivity manager for maintaining target peer connections proactively. |
+| `proactive_dialing_metrics.rs` | Proactive dialing metrics collection and monitoring with always-available API interface. Exports comprehensive metrics for dial attempts, success rates, circuit breaker states, peer availability, and connection health scoring. Features conditional compilation for metrics backend (requires metrics feature) while maintaining consistent public API through stub implementations when metrics disabled. Tracks proactive dialing performance, peer discovery efficiency, connection success rates, and network health indicators. Dependencies: tari_metrics (optional), once_cell for lazy initialization. Used by: connectivity manager and proactive dialer for observability and performance monitoring. |
 | `requester.rs` | Async request interface for connectivity manager operations. Exports: ConnectivityRequester struct, ConnectivityRequest enum, ConnectivityEvent types. Provides async API for connection management requests, peer addition/removal, connectivity status queries, and event subscriptions. Acts as async facade over mpsc channels to connectivity manager actor. Used by: applications, protocol extensions for connection management operations. |
 | `selection.rs` | Peer selection algorithms for connectivity management. Exports: ConnectivitySelection struct and selection strategies. Implements algorithms for choosing which peers to connect to based on connection pool state, peer priority, network distance, and connectivity goals. Handles peer ranking and selection optimization. Used by: connectivity manager for intelligent peer connection decisions. |
 | `test.rs` | Unit tests for connectivity management functionality. Tests connection pool operations, peer selection algorithms, connectivity state transitions, and manager request handling. Verifies proper behavior under various network conditions and failure scenarios. Dependencies: test utilities, mock connections. Used by: CI/CD for ensuring connectivity system reliability. |
@@ -3026,7 +2811,7 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 | `error.rs` | Error types for peer management operations. Exports: PeerManagerError enum. Defines errors for peer storage, database operations, peer validation, address resolution, and identity verification failures. Implements error conversion from storage layer and validation errors. Dependencies: thiserror, peer storage. Used by: peer manager for error handling and propagation during peer operations. |
 | `hashing.rs` | Hashing utilities for peer manager operations and DHT functionality. Exports: hashing functions for node IDs, peer identification, and DHT distance calculations. Provides consistent hashing algorithms for peer addressing and network topology operations. Dependencies: blake2, hashing primitives. Used by: peer manager, DHT routing for node identification and distance-based operations. |
 | `identity_signature.rs` | Digital signature verification for peer identity claims and authentication. Exports: IdentitySignature struct, signature verification functions. Provides cryptographic verification of peer identity claims, signature creation/validation, and authentication data structures. Ensures peer identity integrity and prevents impersonation. Dependencies: tari crypto, signature schemes. Used by: peer validation, identity verification during connection establishment. |
-| `manager.rs` | Core peer manager implementation for peer storage and management operations. Exports: PeerManager struct with comprehensive peer management functionality. Implements async interface to peer database with CRUD operations, peer queries, address management, and peer relationship tracking. Central component for peer data management with SQLite backend. Used throughout: comms system for peer information storage and retrieval. |
+| `manager.rs` | Peer management interface for storing and managing network peer information. Exports PeerManager with enhanced SQL-based peer selection capabilities. Provides persistent peer storage, identity management, peer discovery support, and address management through SQLite-backed peer database with async interface. Added get_available_dial_candidates() method for efficient SQL-based filtering of communication nodes, excluding banned/deleted peers and connected nodes, optimized for proactive dialing performance. Implements comprehensive peer lifecycle operations including add/update, soft deletion, node existence checks, and targeted peer queries. Dependencies: peer storage SQL, peer types, node features. Used by: connectivity manager, connection manager, and proactive dialer for peer information and network topology management. |
 | `metrics.rs` | Prometheus metrics collection for peer management operations. Exports metric collection functions for peer counts, storage operations, identity verification performance, and peer database statistics. Tracks peer manager health and operational metrics. Dependencies: tari_metrics. Used by: peer manager for observability and performance monitoring. |
 | `mod.rs` | Peer management module for storing and managing network peer information. Exports: PeerManager, Peer, NodeId, NodeIdentity, PeerFeatures, and related types. Provides persistent peer storage, identity management, peer discovery, and address management. Implements SQLite-backed peer database with async interface. Used by: connectivity manager, connection manager for peer information and network topology management. |
 | `node_distance.rs` | Node distance calculations for DHT routing and peer selection. Exports: NodeDistance struct and distance calculation functions. Implements XOR distance metric between node IDs for DHT operations, peer ranking, and network topology calculations. Provides distance-based peer selection and routing algorithms. Used by: DHT implementation, peer selection algorithms for network routing and connectivity optimization. |
@@ -3037,13 +2822,13 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 | `peer_features.rs` | Peer feature flags and capability declarations. Exports: PeerFeatures bitflags. Defines peer capabilities including communication node, base node, validator, and service-specific features. Enables peer capability discovery and protocol compatibility checking. Supports feature-based peer filtering and service discovery. Used by: peer management, protocol negotiation for capability-based peer selection and compatibility. |
 | `peer_id.rs` | Peer identifier types and conversion utilities. Exports: PeerId enum supporting multiple identifier formats. Enables peer identification by NodeId, PublicKey, or short ID variants. Provides conversion between identifier types and peer lookup optimization. Supports flexible peer addressing schemes. Used by: peer manager, applications for peer identification and lookup operations. |
 | `peer_identity_claim.rs` | Peer identity claim verification and authentication. Exports: PeerIdentityClaim struct. Handles cryptographic proof of peer identity ownership including signature verification, timestamp validation, and identity claim construction. Prevents identity spoofing and ensures authentic peer representation. Dependencies: signature verification, timestamp validation. Used by: peer validation, identity verification during peer discovery and connection establishment. |
-| `peer_storage_sql.rs` | SQLite-based persistent storage implementation for peer data. Exports: PeerStorageSql struct. Provides async interface to SQLite database for peer CRUD operations, queries, and database maintenance. Handles peer serialization, indexing, migrations, and concurrent access. Dependencies: diesel ORM, SQLite database. Used by: PeerManager for persistent peer storage and retrieval operations. |
+| `peer_storage_sql.rs` | SQLite-based persistent storage implementation for peer data with enhanced query capabilities. Exports: PeerStorageSql struct with optimized dial candidate selection. Provides async interface to SQLite database for peer CRUD operations, queries, and database maintenance. Added get_available_dial_candidates() method for efficient SQL-based filtering of communication nodes suitable for proactive dialing, avoiding memory-intensive full peer database loading. Handles peer serialization, indexing, migrations, and concurrent access with performance optimizations for connectivity management. Dependencies: peer database SQL, diesel ORM, SQLite database. Used by: PeerManager for persistent peer storage, retrieval operations, and efficient peer candidate selection. |
 
 ###### comms/core/src/peer_manager/storage/
 
 | File | Description |
 |------|-------------|
-| `database.rs` | Database layer implementation for peer storage operations. Exports: database connection management, transaction handling, and query interfaces. Provides low-level database operations for peer storage including connection pooling, query optimization, and error handling. Dependencies: diesel, SQLite. Used by: peer storage SQL for database access and transaction management. |
+| `database.rs` | Database layer implementation for peer storage operations with enhanced SQL-based peer selection and safe type conversions. Exports: database connection management, transaction handling, and query interfaces including new get_available_dial_candidates() method. Provides low-level database operations for peer storage including connection pooling, query optimization, and efficient filtering operations. Added targeted SQL queries for dial candidate selection filtering by communication node features, ban status, deletion status, and exclusion lists for optimal proactive dialing performance. Implements safe usize to i64 conversions using try_from to prevent integer overflow and satisfy clippy lints. Dependencies: diesel, SQLite, peer types. Used by: peer storage SQL for database access, transaction management, and performance-optimized peer queries. |
 | `mod.rs` | Peer storage module providing database abstraction layer. Exports: storage traits, database implementation, migration support. Provides interface between peer manager and persistent storage backend with support for different storage implementations. Handles data serialization, query optimization, and storage lifecycle. Used by: peer manager for persistent peer data storage operations. |
 | `schema.rs` | Database schema definitions for peer storage tables. Exports: table definitions, column specifications, and schema constants. Generated by diesel to provide type-safe database access and query building. Defines peer table structure and relationships. Dependencies: diesel codegen. Used by: peer storage SQL for type-safe database operations and queries. |
 
@@ -3929,7 +3714,7 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 
 | File | Description |
 |------|-------------|
-| `cucumber.rs` | Cucumber integration test runner and behavioral test execution coordinator. Exports cucumber test configuration, step definitions, and behavioral test execution infrastructure. Dependencies: cucumber framework, test infrastructure. Used by: integration testing to run behavioral tests, execute cucumber scenarios, and provide BDD-style testing for Tari functionality. |
+| `cucumber.rs` | Main test entry point for Tari integration tests using Cucumber BDD framework. Sets up logging configuration, runtime environment, and test execution with scenario filtering and result reporting. Fixed to remove unstable internal_output_capture feature dependency for stable Rust compatibility. Provides comprehensive test harness for blockchain functionality validation across multiple concurrent scenarios with health monitoring and error reporting. |
 
 ##### integration_tests/tests/features/
 
@@ -4038,3 +3823,4 @@ The Tari project is designed to be built and deployed on a variety of platforms 
 | `config.toml` | Cargo-vet supply chain security configuration for dependency auditing and verification in the Tari project. Configures security audit imports from trusted organizations (Bytecode Alliance, Embark Studios, Fermyon, Google, Mozilla, Zcash), defines audit policies for all Tari crates (audit-as-crates-io = true), and lists exemptions for third-party dependencies with 'safe-to-deploy' criteria. Provides comprehensive dependency security verification ensuring all external crates meet security standards. Critical security infrastructure component protecting against supply chain attacks and maintaining dependency integrity. |
 | `imports.lock` | Cargo-vet imports lock file tracking publisher verification and audit inheritance from trusted audit sources. Records publisher metadata including user IDs, login names, and publication timestamps for crates like bumpalo, core-foundation, encoding_rs, unicode libraries, and wit-bindgen-rt. Includes wildcard audits and inherited security certifications from organizations like Bytecode Alliance, Embark Studios, Google, and others. Ensures dependency authenticity through cryptographic publisher verification and trusted audit aggregation. |
 
+---
